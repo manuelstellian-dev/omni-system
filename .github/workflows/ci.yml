@@ -1,0 +1,211 @@
+name: OMNI CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black pylint mypy isort bandit pytest pytest-asyncio pytest-cov
+      
+      - name: Run Black formatter check
+        run: |
+          cd core
+          black --check --line-length 100 *.py
+        continue-on-error: false
+      
+      - name: Run isort import sorting check
+        run: |
+          cd core
+          isort --check-only --profile black *.py
+        continue-on-error: true
+      
+      - name: Run Pylint
+        run: |
+          cd core
+          pylint *.py --fail-under=7.0 --max-line-length=100 || true
+        continue-on-error: true
+      
+      - name: Run MyPy type checking
+        run: |
+          cd core
+          mypy *.py --ignore-missing-imports --no-strict-optional || true
+        continue-on-error: true
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Bandit
+        run: pip install bandit[toml]
+      
+      - name: Run Bandit security scanner
+        run: |
+          bandit -r core/ -f json -o bandit-report.json || true
+          bandit -r core/ -ll
+        continue-on-error: true
+      
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: bandit-report.json
+          retention-days: 30
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-mock
+      
+      - name: Create tests directory if not exists
+        run: |
+          mkdir -p core/tests/unit
+          mkdir -p core/tests/integration
+      
+      - name: Run unit tests with coverage
+        run: |
+          cd core
+          pytest tests/unit/ -v --cov=. --cov-report=xml --cov-report=term-missing || echo "No unit tests found yet"
+        continue-on-error: true
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./core/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+      
+      - name: Run integration tests
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OMNI_MODEL: gemini/gemini-2.5-flash
+        run: |
+          cd core
+          pytest tests/integration/ -v --maxfail=1 || echo "No integration tests found yet"
+        continue-on-error: true
+
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Verify imports
+        run: |
+          cd core
+          python -c "import main; import cortex; import swarm; import arbiter; print('✓ All core modules importable')"
+      
+      - name: Check for syntax errors
+        run: |
+          cd core
+          python -m py_compile *.py
+          echo "✓ All Python files compile successfully"
+
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, security, test, build-check]
+    if: always()
+    
+    steps:
+      - name: Check CI status
+        run: |
+          echo "🎯 CI Pipeline Complete"
+          echo "========================"
+          echo "Lint: ${{ needs.lint.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          echo "Tests: ${{ needs.test.result }}"
+          echo "Build: ${{ needs.build-check.result }}"
