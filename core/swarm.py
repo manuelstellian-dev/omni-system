@@ -138,6 +138,14 @@ class SwarmAgent:
         Raises:
             MemoryError: If system runs out of memory (caught by caller for fallback)
         """
+        # PRE-CHECK: Wait until resources are available
+        while True:
+            recommendation = self.resource_monitor.get_recommendation()
+            if not recommendation['should_throttle']:
+                break
+            console.print(f"[yellow]⚠ {recommendation['message']} - Waiting...[/yellow]")
+            await asyncio.sleep(2)
+
         async with self.semaphore:
             # Pre-execution memory check
             try:
@@ -153,12 +161,15 @@ class SwarmAgent:
             # Execute the actual task
             await self._execute_task(task, spec, target_path, progress)
 
-    def _write_file(self, target_path: Path, file_path: str, content: str):
+    def _write_file(self, target_path: Path, file_path: str, content: Any):
         """Helper to write content to a file and log the action."""
         full_path = target_path / file_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
+            # If content is a dictionary, convert it to a JSON string
+            if isinstance(content, dict):
+                content = json.dumps(content, indent=2) # Use indent for readability
             with open(full_path, "w") as f:
                 f.write(content)
             console.print(f"[green]✓[/green] {file_path}")

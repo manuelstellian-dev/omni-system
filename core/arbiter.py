@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from rich.console import Console
 from cortex import ProjectSpec
 from compatibility_checker import CompatibilityChecker
+from resource_manager import get_resource_manager
 
 
 console = Console()
@@ -18,6 +19,7 @@ class ArbiterAgent:
         self.model = os.getenv("OMNI_MODEL", "gpt-4o")
         self.sandbox_dir = tempfile.mkdtemp(prefix="omni_sandbox_")
         self.compatibility_checker = CompatibilityChecker()
+        self.resource_manager = get_resource_manager()
         self.build_commands = {
             "nextjs": ["npm install", "npm run build"],
             "react": ["npm install", "npm run build"],
@@ -44,8 +46,21 @@ class ArbiterAgent:
         console.print(f"\n[bold yellow]Arbiter: Verifying project...[/bold yellow]")
         console.print(f"[dim]Target: {target_path}[/dim]\n")
 
+        # PHASE 0: Check system resources
+        resources = self.resource_manager.get_system_resources()
+        console.print(f"[bold blue]💻 System Resources:[/bold blue]")
+        console.print(f"  RAM: {resources['ram_percent']:.1f}% | CPU: {resources['cpu_percent']:.1f}%")
+        
+        if self.resource_manager.should_reduce_load():
+            console.print("[bold red]❌ ABORT: System resources critical![/bold red]")
+            return {
+                "status": "error",
+                "message": "System resources too high. Free up RAM/CPU and try again.",
+                "resources": resources
+            }
+
         # PHASE 1: Compatibility Check BEFORE building
-        console.print("[bold cyan]Phase 1: Checking package compatibility...[/bold cyan]")
+        console.print("\n[bold cyan]Phase 1: Checking package compatibility...[/bold cyan]")
         compat_result = self.compatibility_checker.check_project(str(target_path))
         
         if compat_result["status"] == "error":

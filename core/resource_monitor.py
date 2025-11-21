@@ -30,7 +30,7 @@ class ResourceMonitor:
     def get_system_metrics(self) -> Dict[str, float]:
         """Get current system resource usage"""
         return {
-            "cpu_percent": psutil.cpu_percent(interval=1),
+            "cpu_percent": psutil.cpu_percent(interval=0),
             "memory_percent": psutil.virtual_memory().percent,
             "memory_available_gb": psutil.virtual_memory().available / (1024**3),
             "cpu_count": psutil.cpu_count()
