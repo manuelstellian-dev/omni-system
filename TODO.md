@@ -7,74 +7,100 @@
 
 ## 🔴 CRITICAL (Priority 1) - In Progress
 
-### Fix: Memory Overflow with Parallel Task Execution
-**Issue**: System crashes (OOM Killer, exit code 137) when executing 15+ tasks concurrently  
-**Root Cause**: Unlimited concurrency in `swarm.py` → all "ready" tasks execute simultaneously  
-**Impact**: RAM 100%, CPU 93%, GPU 92% → System kills process  
+### PHASE 1: LTS Package Management & Compatibility System
+**Issue**: Package version conflicts, breaking changes, and incompatibilities reduce build success rate  
+**Root Cause**: No version pinning, no compatibility checking, no LTS preference  
+**Impact**: Build success ~30%, frequent dependency conflicts, manual fixes required  
 
-**Branch**: `feature/adaptive-concurrency-limiter`  
+**Branch**: `feature/lts-package-management`  
 **Assignee**: @manuelstellian-dev  
-**Status**: 🚧 TODO (blocked by CI/CD setup completion)
+**Status**: 🚧 IN PROGRESS
+
+#### Expected Improvements
+- ✅ Build success: **30% → 70%** (⬆️ +40%)
+- ✅ Package conflicts: **-90%** (⬇️ dramatically reduced)
+- ✅ Stability: **Enterprise-grade** 🏆
+- ✅ Auto-recovery: Breaking changes detected and handled
 
 #### Implementation Plan
 
-- [ ] **Install psutil** for memory monitoring
-  ```bash
-  cd core
-  pip install psutil
-  echo "psutil>=5.9.0" >> requirements.txt
-  ```
+##### **1. LTS Package Version Database** 
+- [ ] Create `core/lts_versions.json` with LTS versions for major ecosystems:
+  - **Node.js**: 18.x, 20.x (prefer 20.x)
+  - **React**: 18.x (stable)
+  - **Next.js**: 14.x (stable, 15.x if specified)
+  - **Python**: 3.11, 3.12
+  - **TypeScript**: 5.x
+  - **Prisma**: 5.x
+  - **Database patterns**: Known-good version combinations
 
-- [ ] **Add adaptive concurrency calculation** to `SwarmAgent.__init__()`
-  - Calculate optimal concurrency based on available RAM
-  - Formula: `available_ram_gb / 1.5` capped at 8 tasks max
-  - Support ENV override: `OMNI_MAX_CONCURRENT_TASKS`
+##### **2. Breaking Changes Detection System**
+- [ ] Create `core/breaking_changes.json` database:
+  - Known breaking changes between versions
+  - Migration guides (URLs to docs)
+  - Severity levels (critical, high, medium)
+  - Auto-fix strategies when possible
 
-- [ ] **Implement semaphore-based limiting**
-  - Add `self.semaphore = asyncio.Semaphore(max_concurrent_tasks)`
-  - Create wrapper: `_execute_task_with_safety()`
-  - Wrap existing `_execute_task()` with semaphore
+##### **3. Compatibility Matrix Engine**
+- [ ] Create `core/compatibility_checker.py`:
+  - Check package combinations against known conflicts
+  - Validate peer dependencies
+  - Suggest compatible version sets
+  - Warn about untested combinations
 
-- [ ] **Add memory monitoring during execution**
-  - Check RAM usage before each task
-  - Pause if memory > 85% (cooling down)
-  - Auto-fallback to sequential if MemoryError
+##### **4. Auto-Downgrade Strategy**
+- [ ] Implement in Arbiter Agent (`core/arbiter.py`):
+  - When build fails due to version conflict → detect it
+  - Look up compatible versions from matrix
+  - Generate fix with downgrade to LTS/compatible versions
+  - Apply fix and retry build
+  - Log downgrade decision for learning
 
-- [ ] **Add graceful degradation**
-  - Try parallel first
-  - Catch MemoryError → switch to serial
-  - Continue execution without crash
+##### **5. Integration with Swarm Agent**
+- [ ] Update `core/swarm.py`:
+  - Before generating `package.json` → consult LTS database
+  - Prefer LTS versions unless user explicitly requests specific version
+  - Add version justification in generated files (comments)
+  - Flag potential breaking changes in logs
 
 #### Testing Requirements
 
-- [ ] **Unit Tests** (`tests/unit/test_swarm_concurrency.py`)
-  - Test concurrency calculation for different RAM levels
-  - Test ENV override works correctly
-  - Test semaphore actually limits concurrent tasks
-  - Mock psutil to simulate memory conditions
+- [ ] **Unit Tests** (`tests/unit/test_lts_versions.py`)
+  - Test LTS version lookup for different ecosystems
+  - Test compatibility matrix validation
+  - Test breaking changes detection
+  - Test version parsing and comparison
 
-- [ ] **Integration Tests** (`tests/integration/test_swarm_memory_safety.py`)
-  - Test with small project (2-3 tasks) → should succeed
-  - Test with large project (15+ tasks) → should not crash
-  - Verify memory usage stays < 80%
-  - Verify execution time is reasonable
+- [ ] **Unit Tests** (`tests/unit/test_compatibility_checker.py`)
+  - Test known conflict detection
+  - Test version suggestion logic
+  - Test peer dependency validation
+
+- [ ] **Integration Tests** (`tests/integration/test_arbiter_downgrade.py`)
+  - Test auto-downgrade on version conflict
+  - Test build retry after downgrade
+  - Test learning from successful downgrades
+  - Verify fix generation quality
 
 #### Acceptance Criteria
 
-- ✅ System does NOT crash with 15+ task projects
-- ✅ RAM usage stays < 80% during execution
-- ✅ All unit tests pass
-- ✅ Integration test with large project succeeds
-- ✅ Code coverage > 80% for new code
-- ✅ Documentation updated (docstrings)
-- ✅ README updated with new ENV variable
+- ✅ LTS versions database complete for major ecosystems
+- ✅ Breaking changes database with top 20 known issues
+- ✅ Compatibility checker validates package combinations
+- ✅ Arbiter auto-downgrades on version conflicts
+- ✅ Build success rate improves to 60-70%
+- ✅ All unit tests pass with > 80% coverage
+- ✅ Integration tests verify auto-recovery works
+- ✅ Documentation updated with version strategy
 
 #### Related Files
 
-- `core/swarm.py` - Main implementation
-- `core/requirements.txt` - Add psutil
-- `.env.example` - Document new ENV variable
-- `README.md` - Update configuration section
+- `core/lts_versions.json` - NEW: LTS version database
+- `core/breaking_changes.json` - NEW: Breaking changes database
+- `core/compatibility_checker.py` - NEW: Compatibility matrix engine
+- `core/arbiter.py` - MODIFY: Add auto-downgrade logic
+- `core/swarm.py` - MODIFY: Integrate LTS preference
+- `README.md` - UPDATE: Document version strategy
 
 ---
 

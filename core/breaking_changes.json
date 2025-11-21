@@ -1,0 +1,199 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-11-21",
+  "description": "Known breaking changes and migration guides for major packages",
+  
+  "breaking_changes": [
+    {
+      "package": "next",
+      "from_version": "14.x",
+      "to_version": "15.x",
+      "severity": "high",
+      "changes": [
+        {
+          "title": "React 19 Support",
+          "description": "Next.js 15 adds support for React 19 but React 18.3+ still works",
+          "impact": "Optional upgrade, not breaking if staying on React 18.3+",
+          "migration_url": "https://nextjs.org/docs/app/building-your-application/upgrading/version-15"
+        },
+        {
+          "title": "Turbopack Dev Server",
+          "description": "New default bundler may cause compatibility issues",
+          "impact": "Can fallback to webpack with --webpack flag",
+          "auto_fix": "Add 'webpack' to next.config.js if issues occur"
+        },
+        {
+          "title": "Async Request APIs",
+          "description": "headers(), cookies(), params now async in Server Components",
+          "impact": "Requires await for these APIs",
+          "migration_url": "https://nextjs.org/docs/messages/sync-dynamic-apis"
+        }
+      ]
+    },
+    {
+      "package": "react",
+      "from_version": "18.x",
+      "to_version": "19.x",
+      "severity": "critical",
+      "changes": [
+        {
+          "title": "New JSX Transform Required",
+          "description": "React 19 requires updated JSX transform",
+          "impact": "TypeScript config must be updated",
+          "auto_fix": "Update tsconfig.json jsx to 'react-jsx'"
+        },
+        {
+          "title": "Ref Cleanup Functions",
+          "description": "Ref callbacks can now return cleanup functions",
+          "impact": "New feature, not breaking"
+        }
+      ]
+    },
+    {
+      "package": "prisma",
+      "from_version": "4.x",
+      "to_version": "5.x",
+      "severity": "medium",
+      "changes": [
+        {
+          "title": "Node.js 16.13+ Required",
+          "description": "Drops support for Node.js < 16.13",
+          "impact": "Must use Node.js 16.13 or higher",
+          "auto_fix": "Specify Node.js version in engines field"
+        },
+        {
+          "title": "JSON Protocol Default",
+          "description": "New faster JSON protocol is default",
+          "impact": "Should be transparent, minor behavior changes possible"
+        }
+      ]
+    },
+    {
+      "package": "next-auth",
+      "from_version": "4.x",
+      "to_version": "5.x",
+      "severity": "critical",
+      "changes": [
+        {
+          "title": "Package Rename to Auth.js",
+          "description": "next-auth v5 is major rewrite as @auth/nextjs",
+          "impact": "Complete API restructure, avoid v5 for now",
+          "recommendation": "Stay on v4 until v5 is stable",
+          "migration_url": "https://authjs.dev/getting-started/migrating-to-v5"
+        }
+      ]
+    },
+    {
+      "package": "typescript",
+      "from_version": "5.3.x",
+      "to_version": "5.4.x",
+      "severity": "low",
+      "changes": [
+        {
+          "title": "Stricter Type Checking",
+          "description": "Some edge cases now caught by type checker",
+          "impact": "May reveal previously hidden type errors",
+          "recommendation": "Test thoroughly before upgrading"
+        }
+      ]
+    },
+    {
+      "package": "tailwindcss",
+      "from_version": "3.x",
+      "to_version": "4.x",
+      "severity": "high",
+      "changes": [
+        {
+          "title": "Config Format Changes",
+          "description": "v4 beta has new CSS-based configuration",
+          "impact": "Major migration required",
+          "recommendation": "Stay on v3 until v4 is stable",
+          "migration_url": "https://tailwindcss.com/docs/upgrade-guide"
+        }
+      ]
+    },
+    {
+      "package": "stripe",
+      "from_version": "13.x",
+      "to_version": "14.x",
+      "severity": "low",
+      "changes": [
+        {
+          "title": "Updated API Version",
+          "description": "Uses newer Stripe API version",
+          "impact": "Minor API changes, generally backwards compatible"
+        }
+      ]
+    }
+  ],
+  
+  "conflict_resolutions": [
+    {
+      "conflict": "Next.js 15 + React 18.2",
+      "severity": "medium",
+      "solution": "Upgrade React to 18.3.1 or higher",
+      "reason": "Next.js 15 requires React 18.3+",
+      "auto_fix": true,
+      "fix_versions": {
+        "react": "18.3.1",
+        "react-dom": "18.3.1"
+      }
+    },
+    {
+      "conflict": "Prisma 5 + Node.js < 16.13",
+      "severity": "critical",
+      "solution": "Downgrade to Prisma 4.x or upgrade Node.js",
+      "reason": "Prisma 5 requires Node.js 16.13+",
+      "auto_fix": true,
+      "fix_versions": {
+        "prisma": "4.16.2",
+        "@prisma/client": "4.16.2"
+      }
+    },
+    {
+      "conflict": "NextAuth 5 + Production Use",
+      "severity": "high",
+      "solution": "Downgrade to NextAuth 4.24.5",
+      "reason": "NextAuth 5 is beta and unstable",
+      "auto_fix": true,
+      "fix_versions": {
+        "next-auth": "4.24.5"
+      }
+    },
+    {
+      "conflict": "TypeScript 5.4 + Strict Mode Errors",
+      "severity": "medium",
+      "solution": "Downgrade to TypeScript 5.3.3",
+      "reason": "5.4 has stricter checks causing build failures",
+      "auto_fix": true,
+      "fix_versions": {
+        "typescript": "5.3.3"
+      }
+    }
+  ],
+  
+  "peer_dependency_requirements": {
+    "next": {
+      "required_peers": ["react", "react-dom"],
+      "version_constraints": {
+        "14.x": {
+          "react": "^18.2.0",
+          "react-dom": "^18.2.0"
+        },
+        "15.x": {
+          "react": "^18.3.0 || ^19.0.0",
+          "react-dom": "^18.3.0 || ^19.0.0"
+        }
+      }
+    },
+    "@prisma/client": {
+      "required_peers": ["prisma"],
+      "must_match_version": true,
+      "note": "prisma and @prisma/client must have identical versions"
+    },
+    "next-auth": {
+      "required_peers": ["next", "react", "react-dom"],
+      "optional_peers": ["nodemailer"]
+    }
+  }
+}

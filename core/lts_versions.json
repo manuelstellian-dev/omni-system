@@ -1,0 +1,140 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-11-21",
+  "description": "LTS and stable version recommendations for major ecosystems",
+  
+  "nodejs": {
+    "lts": ["18.20.0", "20.11.0"],
+    "recommended": "20.11.0",
+    "note": "Prefer 20.x for latest features, 18.x for maximum stability"
+  },
+  
+  "npm": {
+    "lts": ["10.5.0"],
+    "recommended": "10.5.0"
+  },
+  
+  "react": {
+    "lts": ["18.2.0", "18.3.1"],
+    "recommended": "18.3.1",
+    "note": "React 18 is stable and widely adopted"
+  },
+  
+  "nextjs": {
+    "lts": ["14.2.0"],
+    "recommended": "14.2.0",
+    "latest_stable": "15.0.0",
+    "note": "Use 14.x for LTS, 15.x only if explicitly requested"
+  },
+  
+  "typescript": {
+    "lts": ["5.3.3", "5.4.5"],
+    "recommended": "5.3.3",
+    "note": "5.3.x is most stable, 5.4.x for latest features"
+  },
+  
+  "prisma": {
+    "lts": ["5.8.0", "5.9.1"],
+    "recommended": "5.8.0",
+    "note": "5.8.x proven stable for production"
+  },
+  
+  "nextauth": {
+    "lts": ["4.24.5"],
+    "recommended": "4.24.5",
+    "note": "v5 is beta, stick to v4 for stability"
+  },
+  
+  "tailwindcss": {
+    "lts": ["3.4.1"],
+    "recommended": "3.4.1"
+  },
+  
+  "stripe": {
+    "lts": ["14.18.0"],
+    "recommended": "14.18.0"
+  },
+  
+  "zod": {
+    "lts": ["3.22.4"],
+    "recommended": "3.22.4"
+  },
+  
+  "resend": {
+    "lts": ["3.2.0"],
+    "recommended": "3.2.0"
+  },
+  
+  "jest": {
+    "lts": ["29.7.0"],
+    "recommended": "29.7.0"
+  },
+  
+  "postgresql": {
+    "lts": ["15.5", "16.1"],
+    "recommended": "15.5",
+    "note": "Prefer 15.x for maximum compatibility"
+  },
+  
+  "python": {
+    "lts": ["3.11.8", "3.12.2"],
+    "recommended": "3.11.8",
+    "note": "3.11 has best library support, 3.12 for performance"
+  },
+  
+  "compatibility_rules": {
+    "nextjs_14": {
+      "react": "^18.2.0",
+      "react-dom": "^18.2.0",
+      "note": "Next.js 14 requires React 18"
+    },
+    "nextjs_15": {
+      "react": "^18.3.0 || ^19.0.0",
+      "react-dom": "^18.3.0 || ^19.0.0",
+      "note": "Next.js 15 supports React 18.3+ and React 19"
+    },
+    "nextauth_4": {
+      "next": "^12.2.0 || ^13.0.0 || ^14.0.0",
+      "note": "NextAuth v4 works with Next.js 12-14"
+    },
+    "prisma_5": {
+      "node": ">=16.13.0",
+      "note": "Prisma 5 requires Node.js 16.13+"
+    }
+  },
+  
+  "known_good_stacks": [
+    {
+      "name": "Next.js 14 SaaS Stack",
+      "description": "Battle-tested SaaS stack with Next.js 14",
+      "versions": {
+        "next": "14.2.0",
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "typescript": "5.3.3",
+        "prisma": "5.8.0",
+        "@prisma/client": "5.8.0",
+        "next-auth": "4.24.5",
+        "tailwindcss": "3.4.1",
+        "stripe": "14.18.0",
+        "zod": "3.22.4"
+      }
+    },
+    {
+      "name": "Next.js 15 Modern Stack",
+      "description": "Latest stable stack with Next.js 15",
+      "versions": {
+        "next": "15.0.0",
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "typescript": "5.4.5",
+        "prisma": "5.9.1",
+        "@prisma/client": "5.9.1",
+        "next-auth": "4.24.5",
+        "tailwindcss": "3.4.1",
+        "stripe": "14.18.0",
+        "zod": "3.22.4"
+      }
+    }
+  ]
+}
