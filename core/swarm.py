@@ -1,17 +1,17 @@
-import os
-import litellm
-import json
 import asyncio
-import psutil
+import json
+import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.panel import Panel
-from cortex import ProjectSpec, Task
-from prompt_assembler import PromptAssembler
-from memory_agent import MemoryAgent
+from typing import Any
 
+import litellm
+import psutil
+from cortex import ProjectSpec, Task
+from memory_agent import MemoryAgent
+from prompt_assembler import PromptAssembler
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 console = Console()
 
@@ -114,7 +114,7 @@ class SwarmAgent:
 
     # File templates and dependency mapping moved to class level for clarity
     @property
-    def file_templates(self) -> Dict[str, List[str]]:
+    def file_templates(self) -> dict[str, list[str]]:
         """Template files for different technology stacks."""
         return {
             "nextjs": [
@@ -141,7 +141,7 @@ class SwarmAgent:
         }
 
     @property
-    def dependency_map(self) -> Dict[str, List[str]]:
+    def dependency_map(self) -> dict[str, list[str]]:
         """Dependency mapping based on tech stack."""
         return {
             "nextjs": ["next", "react", "react-dom"],
@@ -206,7 +206,7 @@ class SwarmAgent:
                 f.write(content)
             console.print(f"[green]✓[/green] {file_path}")
         except Exception as e:
-            console.print(f"[bold red]✗ Error writing {file_path}: {str(e)}[/bold red]")
+            console.print(f"[bold red]✗ Error writing {file_path}: {e!s}[/bold red]")
 
     async def construct(self, spec: ProjectSpec, target_dir: str):
         """
@@ -251,7 +251,7 @@ class SwarmAgent:
                 if not ready_tasks:
                     # Deadlock detection: no tasks ready but not all completed
                     console.print(
-                        f"[bold red]ERROR: Circular dependency detected in execution plan![/bold red]"
+                        "[bold red]ERROR: Circular dependency detected in execution plan![/bold red]"
                     )
                     console.print(f"Completed: {self.completed_tasks}")
                     console.print(
@@ -282,12 +282,12 @@ class SwarmAgent:
                         self.completed_tasks.add(task.task_id)
                         console.print(f"[green]✓[/green] Task complete: {task.task_id}")
 
-                except MemoryError as e:
+                except MemoryError:
                     # Graceful degradation: fallback to sequential execution
                     console.print(
-                        f"[red]✗ Memory error detected, switching to sequential mode[/red]"
+                        "[red]✗ Memory error detected, switching to sequential mode[/red]"
                     )
-                    console.print(f"[yellow]⚠ This will be slower but prevents crash[/yellow]")
+                    console.print("[yellow]⚠ This will be slower but prevents crash[/yellow]")
 
                     # Execute remaining tasks one by one
                     for task in ready_tasks:
@@ -298,11 +298,11 @@ class SwarmAgent:
                                 console.print(f"[green]✓[/green] Task complete: {task.task_id}")
                             except Exception as task_error:
                                 console.print(
-                                    f"[red]✗ Task failed: {task.task_id} - {str(task_error)}[/red]"
+                                    f"[red]✗ Task failed: {task.task_id} - {task_error!s}[/red]"
                                 )
                                 raise
 
-        console.print(f"\n[bold green]Project construction complete![/bold green]")
+        console.print("\n[bold green]Project construction complete![/bold green]")
         console.print(
             f"[dim]Tasks completed: {len(self.completed_tasks)}/{len(spec.execution_plan)}[/dim]"
         )
@@ -329,7 +329,7 @@ class SwarmAgent:
                 )
             except Exception as e:
                 console.print(
-                    f"[yellow]Warning: Memory retrieval failed for {task.task_id}: {str(e)}[/yellow]"
+                    f"[yellow]Warning: Memory retrieval failed for {task.task_id}: {e!s}[/yellow]"
                 )
 
         # Generate ALL files for this task in a single LLM call
@@ -354,14 +354,14 @@ class SwarmAgent:
                     )
                 except Exception as e:
                     console.print(
-                        f"[yellow]Warning: Memory indexing failed for {file_path}: {str(e)}[/yellow]"
+                        f"[yellow]Warning: Memory indexing failed for {file_path}: {e!s}[/yellow]"
                     )
 
         progress.update(task_progress, completed=True)
 
     async def _generate_task_files(
         self, task: Task, spec: ProjectSpec, context: str
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Generates ALL files for a task in a single LLM call.
 
@@ -456,18 +456,18 @@ CRITICAL INSTRUCTIONS:
                 return files_dict
 
             except json.JSONDecodeError as e:
-                console.print(f"[red]Error parsing LLM response as JSON: {str(e)}[/red]")
+                console.print(f"[red]Error parsing LLM response as JSON: {e!s}[/red]")
                 # Fallback: generate each file individually
                 return await self._generate_files_individually(task, spec, context)
 
         except Exception as e:
-            console.print(f"[red]Error generating task files: {str(e)}[/red]")
+            console.print(f"[red]Error generating task files: {e!s}[/red]")
             # Fallback: generate each file individually
             return await self._generate_files_individually(task, spec, context)
 
     async def _generate_files_individually(
         self, task: Task, spec: ProjectSpec, context: str
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Fallback method: generate files one by one if per-task generation fails.
         """
@@ -524,10 +524,10 @@ RELEVANT CONTEXT:
             return content
 
         except Exception as e:
-            console.print(f"[red]Error generating {file_path}: {str(e)}[/red]")
+            console.print(f"[red]Error generating {file_path}: {e!s}[/red]")
             return self._get_fallback_content(file_path, spec)
 
-    def apply_fix(self, fix_plan: Dict[str, Any]):
+    def apply_fix(self, fix_plan: dict[str, Any]):
         """
         Executes the self-healing plan provided by the Arbiter.
 
@@ -536,7 +536,7 @@ RELEVANT CONTEXT:
 
         This method remains synchronous as it only writes files.
         """
-        fixes: List[Dict[str, str]] = fix_plan.get("fixes", [])
+        fixes: list[dict[str, str]] = fix_plan.get("fixes", [])
 
         if not self.target_dir:
             console.print("[bold red]ERROR: target_dir not set. Cannot apply fixes.[/bold red]")
@@ -565,7 +565,7 @@ RELEVANT CONTEXT:
                 new_content = fix.get("new_content")
 
                 if not file_path or not new_content:
-                    console.print(f"[bold red]Skipping malformed fix in plan.[/bold red]")
+                    console.print("[bold red]Skipping malformed fix in plan.[/bold red]")
                     progress.advance(task)
                     continue
 
@@ -578,7 +578,7 @@ RELEVANT CONTEXT:
 
         console.print("\n[bold green]✓ Swarm Fixes Applied[/bold green]\n")
 
-    def _determine_required_dependencies(self, spec: ProjectSpec) -> List[str]:
+    def _determine_required_dependencies(self, spec: ProjectSpec) -> list[str]:
         """
         Determines required npm/pip packages based on the tech stack.
         This ensures all necessary dependencies are included in package.json.
