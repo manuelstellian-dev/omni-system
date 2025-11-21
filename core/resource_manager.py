@@ -38,7 +38,7 @@ class AdaptiveConcurrency:
         """Get current system resource usage"""
         try:
             memory = psutil.virtual_memory()
-            cpu = psutil.cpu_percent(interval=0.1)
+            cpu = psutil.cpu_percent(interval=0)
             
             return {
                 'ram_percent': memory.percent,
