@@ -518,7 +518,7 @@ IMPORTANT: Order fixes by dependency (layer 1: dependencies, layer 2: config, la
 
         user_prompt = f"""COMPREHENSIVE CONTEXT FOR META DIAGNOSIS:
 
-=== REPAIR HISTORY (7 Failed Strategies) ===
+=== REPAIR HISTORY (Recent Failed Strategies) ===
 {repair_summary}
 
 === CRITICAL PROJECT FILES ===
@@ -532,15 +532,16 @@ Command: {error.get('command', 'unknown')}
 Exit Code: {error.get('exit_code', 'unknown')}
 
 STDOUT:
-{error.get('stdout', '')[:2000]}
+{error.get('stdout', '')[:800]}
 
 STDERR:
-{error.get('stderr', '')[:2000]}
+{error.get('stderr', '')[:800]}
 
 ===================================
 
 Provide a META-level diagnosis and holistic fix that addresses the ROOT CAUSE.
 Apply incremental, coordinated changes across all necessary layers.
+KEEP FIXES MINIMAL - only essential changes.
 """
 
         console.print("[cyan]Calling LLM for META diagnosis...[/cyan]")
@@ -561,13 +562,16 @@ Apply incremental, coordinated changes across all necessary layers.
         return fix_plan
 
     def _collect_repair_history(self) -> str:
-        """Summarize all failed repair attempts for META analysis."""
+        """Summarize all failed repair attempts for META analysis (OPTIMIZED)."""
         if not self.repair_history:
             return "No previous repair attempts (META called directly)"
 
-        summary = []
-        for i, attempt in enumerate(self.repair_history, 1):
-            summary.append(f"\n--- Attempt {i}: {attempt['strategy_name']} ---")
+        # OPTIMIZATION: Only show last 3 attempts instead of all 7
+        recent_attempts = self.repair_history[-3:] if len(self.repair_history) > 3 else self.repair_history
+
+        summary = [f"Showing last {len(recent_attempts)} repair attempts:\n"]
+        for i, attempt in enumerate(recent_attempts, 1):
+            summary.append(f"\n--- Attempt {attempt['attempt_number']}: {attempt['strategy_name']} ---")
             summary.append(f"Result: {'✓ Success' if attempt['success'] else '✗ Failed'}")
 
             if attempt.get('fix_result'):
@@ -575,53 +579,50 @@ Apply incremental, coordinated changes across all necessary layers.
                 if fix_result.get('fixes'):
                     summary.append(f"Fixes attempted: {len(fix_result['fixes'])} files")
                 if fix_result.get('error_summary'):
-                    summary.append(f"Error summary: {fix_result['error_summary']}")
+                    # REDUCED: 500 → 200 chars
+                    summary.append(f"Error summary: {fix_result['error_summary'][:200]}")
 
             if attempt.get('verification_error'):
                 ver_error = attempt['verification_error']
-                stderr = ver_error.get('stderr', '')[:500]
+                # REDUCED: 500 → 200 chars
+                stderr = ver_error.get('stderr', '')[:200]
                 summary.append(f"Verification failed with: {stderr}")
 
         return "\n".join(summary)
 
     async def _read_critical_files(self, target_dir: str, spec: ProjectSpec) -> str:
-        """Read critical project files for dependency and config analysis."""
+        """Read critical project files for dependency and config analysis (OPTIMIZED)."""
         target_path = Path(target_dir)
         critical_files = {}
 
-        # Determine which files to read based on tech stack
+        # OPTIMIZATION: Read only ESSENTIAL files (2 max instead of 5)
         file_candidates = []
 
-        # JavaScript/TypeScript projects
+        # JavaScript/TypeScript projects - ONLY package.json and tsconfig.json
         if any(tech in " ".join(spec.tech_stack) for tech in ["Next.js", "React", "TypeScript", "Node"]):
             file_candidates.extend([
                 "package.json",
-                "tsconfig.json",
-                "next.config.js",
-                "next.config.mjs",
-                ".env.example"
+                "tsconfig.json"
             ])
 
-        # Python projects
+        # Python projects - ONLY requirements.txt or pyproject.toml
         if any(tech in " ".join(spec.tech_stack) for tech in ["Python", "Django", "FastAPI", "Flask"]):
             file_candidates.extend([
                 "requirements.txt",
-                "pyproject.toml",
-                "setup.py",
-                "Pipfile"
+                "pyproject.toml"
             ])
 
-        # Read files that exist
+        # Read files that exist (REDUCED limit: 1000 chars instead of 3000)
         for filename in file_candidates:
             file_path = target_path / filename
             if file_path.exists():
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
-                        critical_files[filename] = f.read()[:3000]  # Limit size
+                        critical_files[filename] = f.read()[:1000]  # REDUCED: 3000 → 1000
                 except Exception as e:
                     critical_files[filename] = f"[Error reading: {str(e)}]"
 
-        # Format for LLM
+        # Format for LLM (concise)
         formatted = []
         for filename, content in critical_files.items():
             formatted.append(f"\n=== {filename} ===\n{content}")
@@ -629,49 +630,28 @@ Apply incremental, coordinated changes across all necessary layers.
         return "\n".join(formatted) if formatted else "No critical files found"
 
     async def _analyze_dependencies(self, target_dir: str, critical_files: str) -> str:
-        """Analyze dependency versions and detect conflicts."""
-        analysis = ["DEPENDENCY CONFLICT ANALYSIS:\n"]
+        """Analyze dependency versions and detect conflicts (OPTIMIZED - fast checks only)."""
+        analysis = []
 
+        # OPTIMIZATION: Simple string checks instead of JSON parsing
         # Parse package.json if present
         if "package.json" in critical_files:
-            try:
-                import json
-                # Extract package.json content
-                start = critical_files.find('"name"')
-                if start > 0:
-                    # Simple extraction (not perfect but works for analysis)
-                    pkg_section = critical_files[start:start+2000]
+            # Quick pattern matching (no JSON parsing to save CPU)
+            if '"react"' in critical_files and '"19.' in critical_files:
+                analysis.append("⚠ React 19 → consider React 18.3.1")
 
-                    # Check for known problematic combinations
-                    conflicts = []
+            if '"next"' in critical_files and '"15.' in critical_files:
+                analysis.append("⚠ Next.js 15 → consider 14.x")
 
-                    if 'react"' in pkg_section and '"19.' in pkg_section:
-                        conflicts.append("⚠ React 19 detected - may be incompatible with many libraries")
-                        conflicts.append("  → Consider downgrading to React 18.3.1")
-
-                    if 'next"' in pkg_section and '"15.' in pkg_section:
-                        conflicts.append("⚠ Next.js 15 detected - very recent, may have compatibility issues")
-                        conflicts.append("  → Consider using Next.js 14.x for stability")
-
-                    if 'next-auth' in pkg_section and 'beta' in pkg_section:
-                        conflicts.append("⚠ NextAuth beta detected - requires specific dependencies")
-                        conflicts.append("  → Ensure React and Next.js versions are compatible")
-
-                    if conflicts:
-                        analysis.extend(conflicts)
-                    else:
-                        analysis.append("✓ No obvious dependency conflicts detected")
-
-            except Exception as e:
-                analysis.append(f"[Error analyzing dependencies: {str(e)}]")
+            if 'next-auth' in critical_files and 'beta' in critical_files:
+                analysis.append("⚠ NextAuth beta → may need specific versions")
 
         # Parse requirements.txt if present
         if "requirements.txt" in critical_files:
-            req_section = critical_files[critical_files.find("requirements.txt"):]
-            if ">=" in req_section and "==" in req_section:
-                analysis.append("⚠ Mixed version constraints (>= and ==) in Python dependencies")
+            if ">=" in critical_files and "==" in critical_files:
+                analysis.append("⚠ Mixed Python version constraints")
 
-        return "\n".join(analysis)
+        return "\n".join(analysis) if analysis else "✓ No obvious conflicts"
 
     async def _save_successful_pattern(
         self,
