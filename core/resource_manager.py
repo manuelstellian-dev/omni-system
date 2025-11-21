@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ResourceLimits:
     """System resource thresholds"""
-    max_ram_percent: float = 85.0  # Stop at 85% RAM
-    max_cpu_percent: float = 90.0  # Stop at 90% CPU
+    max_ram_percent: float = 80.0  # REDUCED: 85 → 80 (more aggressive)  # Stop at 85% RAM
+    max_cpu_percent: float = 85.0  # REDUCED: 90 → 85 (more aggressive)  # Stop at 90% CPU
     min_workers: int = 1
-    max_workers: int = 8
+    max_workers: int = 3           # REDUCED: 8 → 3 (prevent RAM spike)
     check_interval: float = 2.0  # Check every 2 seconds
 
 

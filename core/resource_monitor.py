@@ -13,11 +13,11 @@ class ResourceThresholds:
     """System resource thresholds"""
     cpu_critical: float = 90.0
     cpu_warning: float = 75.0
-    memory_critical: float = 90.0
-    memory_warning: float = 75.0
+    memory_critical: float = 85.0  # REDUCED: 90 → 85 (more aggressive)
+    memory_warning: float = 70.0   # REDUCED: 75 → 70 (earlier warning)
     min_concurrency: int = 1
-    max_concurrency: int = 8
-    default_concurrency: int = 4
+    max_concurrency: int = 3
+    default_concurrency: int = 2
 
 
 class ResourceMonitor:
