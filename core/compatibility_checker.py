@@ -304,6 +304,67 @@ class CompatibilityChecker:
 
         return suggestions
 
+    def check_project(self, project_path: str) -> dict[str, Any]:
+        """
+        Check an entire project for compatibility issues.
+        
+        This is the main entry point called by Arbiter.
+        Returns a structured result with status and issues.
+        """
+        from pathlib import Path
+        import json
+        
+        project = Path(project_path)
+        package_json_path = project / "package.json"
+        
+        if not package_json_path.exists():
+            return {
+                "status": "skipped",
+                "message": "No package.json found - not a Node.js project",
+                "issues": []
+            }
+        
+        try:
+            with open(package_json_path, encoding='utf-8') as f:
+                package_json = json.load(f)
+            
+            is_valid, issues = self.validate_package_json(package_json)
+            
+            # Convert CompatibilityIssue objects to dicts for JSON serialization
+            issues_dict = [
+                {
+                    "severity": issue.severity,
+                    "package": issue.package,
+                    "current_version": issue.current_version,
+                    "message": issue.issue_description,
+                    "suggested_fix": issue.suggested_fix,
+                    "migration_url": issue.migration_url
+                }
+                for issue in issues
+            ]
+            
+            return {
+                "status": "success" if is_valid else "failed",
+                "is_valid": is_valid,
+                "issues": issues_dict,
+                "total_issues": len(issues_dict),
+                "critical_count": sum(1 for i in issues_dict if i["severity"] == "critical"),
+                "checked_file": str(package_json_path)
+            }
+            
+        except json.JSONDecodeError as e:
+            return {
+                "status": "error",
+                "message": f"Invalid package.json: {e}",
+                "issues": []
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Error checking project: {e}",
+                "issues": []
+            }
+
 
 def main():
     """CLI for testing compatibility checker."""

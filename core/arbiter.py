@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from rich.console import Console
 from cortex import ProjectSpec
+from compatibility_checker import CompatibilityChecker
 
 
 console = Console()
@@ -16,6 +17,7 @@ class ArbiterAgent:
     def __init__(self):
         self.model = os.getenv("OMNI_MODEL", "gpt-4o")
         self.sandbox_dir = tempfile.mkdtemp(prefix="omni_sandbox_")
+        self.compatibility_checker = CompatibilityChecker()
         self.build_commands = {
             "nextjs": ["npm install", "npm run build"],
             "react": ["npm install", "npm run build"],
@@ -28,6 +30,7 @@ class ArbiterAgent:
     def verify_and_refine(self, target_dir: str, spec: ProjectSpec) -> Dict:
         """
         Verifies the built project by running build/test commands.
+        Now includes compatibility checking BEFORE build commands.
         If failures occur, uses LLM to generate a FIX_PLAN.
         """
         target_path = Path(target_dir).resolve()
@@ -41,6 +44,38 @@ class ArbiterAgent:
         console.print(f"\n[bold yellow]Arbiter: Verifying project...[/bold yellow]")
         console.print(f"[dim]Target: {target_path}[/dim]\n")
 
+        # PHASE 1: Compatibility Check BEFORE building
+        console.print("[bold cyan]Phase 1: Checking package compatibility...[/bold cyan]")
+        compat_result = self.compatibility_checker.check_project(str(target_path))
+        
+        if compat_result["status"] == "error":
+            console.print(f"[bold red]✗ Compatibility check failed[/bold red]")
+            return {
+                "status": "failed",
+                "phase": "compatibility_check",
+                "compatibility_result": compat_result
+            }
+        
+        if compat_result.get("issues"):
+            console.print(f"[yellow]⚠ Found {len(compat_result['issues'])} compatibility issues[/yellow]")
+            for issue in compat_result["issues"]:
+                console.print(f"  • {issue['package']}: {issue['message']}")
+            
+            # Return early if critical issues found
+            critical_issues = [i for i in compat_result["issues"] if i.get("severity") == "critical"]
+            if critical_issues:
+                console.print(f"[red]✗ {len(critical_issues)} CRITICAL issues must be resolved first[/red]")
+                return {
+                    "status": "failed",
+                    "phase": "compatibility_check",
+                    "compatibility_result": compat_result,
+                    "critical_issues": critical_issues
+                }
+        else:
+            console.print("[green]✓ No compatibility issues detected[/green]\n")
+
+        # PHASE 2: Build commands
+        console.print("[bold cyan]Phase 2: Running build commands...[/bold cyan]")
         commands = self._determine_build_commands(spec)
 
         for command in commands:
