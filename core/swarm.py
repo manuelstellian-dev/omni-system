@@ -2,8 +2,9 @@ import os
 import litellm
 import json
 import asyncio
+import psutil
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.panel import Panel
@@ -32,9 +33,104 @@ class SwarmAgent:
         # Track completed tasks (for DAG execution)
         self.completed_tasks: set = set()
 
-        self.file_templates = {
-            "nextjs": ["package.json", "next.config.ts", "tsconfig.json", "src/app/page.tsx", "src/app/layout.tsx"],
-            "react": ["package.json", "vite.config.ts", "tsconfig.json", "src/App.tsx", "src/main.tsx"],
+        # Adaptive concurrency limiting (CRITICAL FIX for memory overflow)
+        self.max_concurrent_tasks = self._calculate_optimal_concurrency()
+        self.semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
+
+        console.print(
+            f"[dim]SwarmAgent initialized with max {self.max_concurrent_tasks} concurrent tasks[/dim]"
+        )
+
+    def _calculate_optimal_concurrency(self) -> int:
+        """
+        Calculate optimal number of concurrent tasks based on available system memory.
+
+        This prevents OOM (Out of Memory) crashes by adaptively limiting parallelism
+        based on RAM availability. Each task can consume 200-400MB during LLM calls.
+
+        Returns:
+            int: Optimal number of concurrent tasks (1-8)
+
+        Environment Variables:
+            OMNI_MAX_CONCURRENT_TASKS: Override automatic calculation
+                - "auto" (default): Calculate based on RAM
+                - Integer (1-10): Force specific concurrency level
+
+        Examples:
+            - System with 2GB free RAM → 1 task (safe mode)
+            - System with 4GB free RAM → 2 tasks
+            - System with 6GB free RAM → 4 tasks
+            - System with 8GB+ free RAM → 6-8 tasks (optimal)
+        """
+        # Check for environment variable override
+        env_override = os.getenv("OMNI_MAX_CONCURRENT_TASKS", "auto")
+        if env_override != "auto":
+            try:
+                override_value = int(env_override)
+                if 1 <= override_value <= 10:
+                    console.print(
+                        f"[yellow]⚠ Using manual concurrency override: {override_value} tasks[/yellow]"
+                    )
+                    return override_value
+                else:
+                    console.print(
+                        f"[yellow]⚠ Invalid OMNI_MAX_CONCURRENT_TASKS={override_value}, using auto[/yellow]"
+                    )
+            except ValueError:
+                console.print(
+                    f"[yellow]⚠ Invalid OMNI_MAX_CONCURRENT_TASKS={env_override}, using auto[/yellow]"
+                )
+
+        # Calculate based on available RAM
+        try:
+            # Get available memory in GB
+            mem = psutil.virtual_memory()
+            available_ram_gb = mem.available / (1024**3)
+
+            # Conservative formula: each task can use ~300-500MB
+            # We want to keep system below 80% memory usage
+            if available_ram_gb < 2:
+                concurrency = 1  # Safe mode
+                console.print(
+                    f"[yellow]⚠ Low memory ({available_ram_gb:.1f}GB), using 1 task[/yellow]"
+                )
+            elif available_ram_gb < 4:
+                concurrency = 2
+            elif available_ram_gb < 6:
+                concurrency = 4
+            elif available_ram_gb < 8:
+                concurrency = 6
+            else:
+                # Cap at 8 tasks even with lots of RAM
+                # (diminishing returns + API rate limits)
+                concurrency = min(8, int(available_ram_gb / 1.5))
+
+            return concurrency
+
+        except Exception as e:
+            # Fallback to conservative default if psutil fails
+            console.print(f"[yellow]⚠ Could not detect memory, defaulting to 3 tasks: {e}[/yellow]")
+            return 3
+
+    # File templates and dependency mapping moved to class level for clarity
+    @property
+    def file_templates(self) -> Dict[str, List[str]]:
+        """Template files for different technology stacks."""
+        return {
+            "nextjs": [
+                "package.json",
+                "next.config.ts",
+                "tsconfig.json",
+                "src/app/page.tsx",
+                "src/app/layout.tsx",
+            ],
+            "react": [
+                "package.json",
+                "vite.config.ts",
+                "tsconfig.json",
+                "src/App.tsx",
+                "src/main.tsx",
+            ],
             "fastapi": ["main.py", "requirements.txt", "models.py", "routes.py", "Dockerfile"],
             "express": ["package.json", "server.ts", "tsconfig.json", "routes/index.ts"],
             "python": ["main.py", "requirements.txt", "Dockerfile"],
@@ -44,8 +140,10 @@ class SwarmAgent:
             "tailwind": ["tailwind.config.ts", "postcss.config.js"],
         }
 
-        # Dependency mapping based on tech stack
-        self.dependency_map = {
+    @property
+    def dependency_map(self) -> Dict[str, List[str]]:
+        """Dependency mapping based on tech stack."""
+        return {
             "nextjs": ["next", "react", "react-dom"],
             "next.js": ["next", "react", "react-dom"],
             "react": ["react", "react-dom"],
@@ -62,6 +160,42 @@ class SwarmAgent:
             "postgres": ["pg"],
         }
 
+    async def _execute_task_with_safety(
+        self, task: Task, spec: ProjectSpec, target_path: Path, progress: Progress
+    ) -> None:
+        """
+        Execute a task with memory safety checks and semaphore limiting.
+
+        This wrapper prevents memory overflow by:
+        1. Using semaphore to limit concurrent tasks
+        2. Monitoring memory usage before execution
+        3. Pausing if memory pressure is high
+        4. Catching MemoryError gracefully
+
+        Args:
+            task: Task to execute
+            spec: Project specification
+            target_path: Target directory path
+            progress: Rich progress bar
+
+        Raises:
+            MemoryError: If system runs out of memory (caught by caller for fallback)
+        """
+        async with self.semaphore:
+            # Pre-execution memory check
+            try:
+                mem = psutil.virtual_memory()
+                if mem.percent > 85:
+                    console.print(
+                        f"[yellow]⚠ High memory usage ({mem.percent:.1f}%), cooling down 3s...[/yellow]"
+                    )
+                    await asyncio.sleep(3)  # Give GC time to clean up
+            except Exception:
+                pass  # Continue even if memory check fails
+
+            # Execute the actual task
+            await self._execute_task(task, spec, target_path, progress)
+
     def _write_file(self, target_path: Path, file_path: str, content: str):
         """Helper to write content to a file and log the action."""
         full_path = target_path / file_path
@@ -73,7 +207,6 @@ class SwarmAgent:
             console.print(f"[green]✓[/green] {file_path}")
         except Exception as e:
             console.print(f"[bold red]✗ Error writing {file_path}: {str(e)}[/bold red]")
-
 
     async def construct(self, spec: ProjectSpec, target_dir: str):
         """
@@ -109,37 +242,74 @@ class SwarmAgent:
             while len(self.completed_tasks) < len(spec.execution_plan):
                 # Find all ready tasks (dependencies satisfied)
                 ready_tasks = [
-                    task for task in spec.execution_plan
+                    task
+                    for task in spec.execution_plan
                     if task.task_id not in self.completed_tasks
                     and all(dep in self.completed_tasks for dep in task.depends_on)
                 ]
 
                 if not ready_tasks:
                     # Deadlock detection: no tasks ready but not all completed
-                    console.print(f"[bold red]ERROR: Circular dependency detected in execution plan![/bold red]")
+                    console.print(
+                        f"[bold red]ERROR: Circular dependency detected in execution plan![/bold red]"
+                    )
                     console.print(f"Completed: {self.completed_tasks}")
-                    console.print(f"Remaining: {[t.task_id for t in spec.execution_plan if t.task_id not in self.completed_tasks]}")
+                    console.print(
+                        f"Remaining: {[t.task_id for t in spec.execution_plan if t.task_id not in self.completed_tasks]}"
+                    )
                     break
 
                 # Display tasks being executed
                 task_names = ", ".join([task.task_id for task in ready_tasks])
-                console.print(f"\n[cyan]Executing {len(ready_tasks)} task(s) in parallel:[/cyan] {task_names}")
+                console.print(
+                    f"\n[cyan]Executing {len(ready_tasks)} task(s) with concurrency limit:[/cyan] {task_names}"
+                )
+                console.print(
+                    f"[dim]Concurrent execution: {self.max_concurrent_tasks} tasks at a time[/dim]"
+                )
 
-                # Execute ready tasks concurrently
-                await asyncio.gather(*[
-                    self._execute_task(task, spec, target_path, progress)
-                    for task in ready_tasks
-                ])
+                try:
+                    # Execute ready tasks concurrently with safety wrapper
+                    await asyncio.gather(
+                        *[
+                            self._execute_task_with_safety(task, spec, target_path, progress)
+                            for task in ready_tasks
+                        ]
+                    )
 
-                # Mark tasks as completed
-                for task in ready_tasks:
-                    self.completed_tasks.add(task.task_id)
-                    console.print(f"[green]✓[/green] Task complete: {task.task_id}")
+                    # Mark tasks as completed
+                    for task in ready_tasks:
+                        self.completed_tasks.add(task.task_id)
+                        console.print(f"[green]✓[/green] Task complete: {task.task_id}")
+
+                except MemoryError as e:
+                    # Graceful degradation: fallback to sequential execution
+                    console.print(
+                        f"[red]✗ Memory error detected, switching to sequential mode[/red]"
+                    )
+                    console.print(f"[yellow]⚠ This will be slower but prevents crash[/yellow]")
+
+                    # Execute remaining tasks one by one
+                    for task in ready_tasks:
+                        if task.task_id not in self.completed_tasks:
+                            try:
+                                await self._execute_task(task, spec, target_path, progress)
+                                self.completed_tasks.add(task.task_id)
+                                console.print(f"[green]✓[/green] Task complete: {task.task_id}")
+                            except Exception as task_error:
+                                console.print(
+                                    f"[red]✗ Task failed: {task.task_id} - {str(task_error)}[/red]"
+                                )
+                                raise
 
         console.print(f"\n[bold green]Project construction complete![/bold green]")
-        console.print(f"[dim]Tasks completed: {len(self.completed_tasks)}/{len(spec.execution_plan)}[/dim]")
+        console.print(
+            f"[dim]Tasks completed: {len(self.completed_tasks)}/{len(spec.execution_plan)}[/dim]"
+        )
 
-    async def _execute_task(self, task: Task, spec: ProjectSpec, target_path: Path, progress: Progress):
+    async def _execute_task(
+        self, task: Task, spec: ProjectSpec, target_path: Path, progress: Progress
+    ):
         """
         Executes a single task from the execution plan.
 
@@ -155,11 +325,12 @@ class SwarmAgent:
         if self.memory_agent:
             try:
                 relevant_context = await self.memory_agent.a_retrieve_context(
-                    query=task.task_description,
-                    n_results=5
+                    query=task.task_description, n_results=5
                 )
             except Exception as e:
-                console.print(f"[yellow]Warning: Memory retrieval failed for {task.task_id}: {str(e)}[/yellow]")
+                console.print(
+                    f"[yellow]Warning: Memory retrieval failed for {task.task_id}: {str(e)}[/yellow]"
+                )
 
         # Generate ALL files for this task in a single LLM call
         generated_files = await self._generate_task_files(task, spec, relevant_context)
@@ -178,15 +349,19 @@ class SwarmAgent:
                         metadata={
                             "task_id": task.task_id,
                             "language": self._detect_language(file_path),
-                            "file_type": self._detect_file_type(file_path)
-                        }
+                            "file_type": self._detect_file_type(file_path),
+                        },
                     )
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Memory indexing failed for {file_path}: {str(e)}[/yellow]")
+                    console.print(
+                        f"[yellow]Warning: Memory indexing failed for {file_path}: {str(e)}[/yellow]"
+                    )
 
         progress.update(task_progress, completed=True)
 
-    async def _generate_task_files(self, task: Task, spec: ProjectSpec, context: str) -> Dict[str, str]:
+    async def _generate_task_files(
+        self, task: Task, spec: ProjectSpec, context: str
+    ) -> Dict[str, str]:
         """
         Generates ALL files for a task in a single LLM call.
 
@@ -245,18 +420,16 @@ CRITICAL INSTRUCTIONS:
         full_prompt = self.assembler.assemble_swarm_prompt(
             task_description=task_description,
             project_files=project_files,
-            required_dependencies=required_dependencies
+            required_dependencies=required_dependencies,
         )
 
         try:
             # Async LLM call
             response = await litellm.acompletion(
                 model=self.model,
-                messages=[
-                    {"role": "user", "content": full_prompt}
-                ],
+                messages=[{"role": "user", "content": full_prompt}],
                 temperature=0.2,
-                api_key=self.gemini_api_key
+                api_key=self.gemini_api_key,
             )
 
             content = response.choices[0].message.content.strip()
@@ -273,7 +446,9 @@ CRITICAL INSTRUCTIONS:
 
                 if not expected_files.issubset(generated_files):
                     missing = expected_files - generated_files
-                    console.print(f"[yellow]Warning: LLM did not generate all files. Missing: {missing}[/yellow]")
+                    console.print(
+                        f"[yellow]Warning: LLM did not generate all files. Missing: {missing}[/yellow]"
+                    )
                     # Generate missing files individually as fallback
                     for missing_file in missing:
                         files_dict[missing_file] = self._get_fallback_content(missing_file, spec)
@@ -290,11 +465,15 @@ CRITICAL INSTRUCTIONS:
             # Fallback: generate each file individually
             return await self._generate_files_individually(task, spec, context)
 
-    async def _generate_files_individually(self, task: Task, spec: ProjectSpec, context: str) -> Dict[str, str]:
+    async def _generate_files_individually(
+        self, task: Task, spec: ProjectSpec, context: str
+    ) -> Dict[str, str]:
         """
         Fallback method: generate files one by one if per-task generation fails.
         """
-        console.print(f"[yellow]Falling back to individual file generation for {task.task_id}[/yellow]")
+        console.print(
+            f"[yellow]Falling back to individual file generation for {task.task_id}[/yellow]"
+        )
 
         files_dict = {}
         for file_path in task.output_files:
@@ -303,7 +482,9 @@ CRITICAL INSTRUCTIONS:
 
         return files_dict
 
-    async def _generate_file_content(self, file_path: str, task: Task, spec: ProjectSpec, context: str) -> str:
+    async def _generate_file_content(
+        self, file_path: str, task: Task, spec: ProjectSpec, context: str
+    ) -> str:
         """
         Generates content for a single file (fallback method).
         """
@@ -326,17 +507,15 @@ RELEVANT CONTEXT:
         full_prompt = self.assembler.assemble_swarm_prompt(
             task_description=task_description,
             project_files=list(self.completed_tasks),
-            required_dependencies=required_dependencies
+            required_dependencies=required_dependencies,
         )
 
         try:
             response = await litellm.acompletion(
                 model=self.model,
-                messages=[
-                    {"role": "user", "content": full_prompt}
-                ],
+                messages=[{"role": "user", "content": full_prompt}],
                 temperature=0.2,
-                api_key=self.gemini_api_key
+                api_key=self.gemini_api_key,
             )
 
             content = response.choices[0].message.content.strip()
@@ -365,11 +544,13 @@ RELEVANT CONTEXT:
 
         target_path = Path(self.target_dir)
 
-        console.print(Panel.fit(
-            f"[bold yellow]SWARM ACTIVATED FOR SELF-HEALING[/bold yellow]\n\n"
-            f"Fixes to apply: {len(fixes)}",
-            border_style="yellow"
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold yellow]SWARM ACTIVATED FOR SELF-HEALING[/bold yellow]\n\n"
+                f"Fixes to apply: {len(fixes)}",
+                border_style="yellow",
+            )
+        )
 
         with Progress(
             SpinnerColumn(),
