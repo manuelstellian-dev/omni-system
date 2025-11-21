@@ -1,0 +1,235 @@
+{
+  "patterns": [
+    {
+      "error_signature": "ModuleNotFoundError: No module named 'pytest'",
+      "category": "missing_dependency",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Add pytest to requirements.txt",
+        "file_path": "requirements.txt",
+        "add_line": "pytest>=7.4.0\npytest-asyncio>=0.21.0",
+        "command": "pip install pytest pytest-asyncio"
+      },
+      "success_rate": 0.98,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "ModuleNotFoundError: No module named 'httpx'",
+      "category": "missing_dependency",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Add httpx to requirements.txt for testing FastAPI",
+        "file_path": "requirements.txt",
+        "add_line": "httpx>=0.25.0",
+        "command": "pip install httpx"
+      },
+      "success_rate": 0.97,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "ImportError: cannot import name",
+      "category": "import_error",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Check import path and fix typos in module names",
+        "typical_causes": [
+          "Typo in import statement",
+          "Wrong module path",
+          "Circular import",
+          "Missing __init__.py"
+        ]
+      },
+      "success_rate": 0.85,
+      "confidence": "medium"
+    },
+    {
+      "error_signature": "sqlite3.OperationalError: no such table",
+      "category": "database_setup",
+      "fix_strategy": "test_config",
+      "solution": {
+        "description": "Initialize database tables in test fixtures",
+        "file_path": "tests/conftest.py",
+        "fix_approach": "Add database.Base.metadata.create_all() in fixture setup"
+      },
+      "success_rate": 0.92,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "fixture 'client' not found",
+      "category": "test_fixture",
+      "fix_strategy": "test_config",
+      "solution": {
+        "description": "Add missing test fixture in conftest.py",
+        "file_path": "tests/conftest.py",
+        "fix_approach": "Define @pytest.fixture for the missing fixture"
+      },
+      "success_rate": 0.94,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "AssertionError: assert 200 == 404",
+      "category": "logic_error",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "API endpoint returning wrong status code",
+        "typical_causes": [
+          "Incorrect route definition",
+          "Missing database record",
+          "Wrong HTTP method",
+          "Authentication failure"
+        ]
+      },
+      "success_rate": 0.70,
+      "confidence": "medium"
+    },
+    {
+      "error_signature": "TypeError: argument of type 'NoneType' is not iterable",
+      "category": "null_check",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Missing null/None check before iteration",
+        "fix_approach": "Add: if variable is not None: before using it"
+      },
+      "success_rate": 0.88,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "AttributeError: 'NoneType' object has no attribute",
+      "category": "null_check",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Attempting to access attribute on None object",
+        "fix_approach": "Add null check or use Optional[] type hint"
+      },
+      "success_rate": 0.86,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "IndentationError:",
+      "category": "syntax_error",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Fix Python indentation (use 4 spaces)",
+        "fix_approach": "Ensure consistent indentation throughout file"
+      },
+      "success_rate": 0.99,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "SyntaxError: invalid syntax",
+      "category": "syntax_error",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Python syntax error - missing colon, parenthesis, etc.",
+        "typical_causes": [
+          "Missing colon after def/if/for/while",
+          "Unclosed parenthesis or bracket",
+          "Invalid Python keyword usage"
+        ]
+      },
+      "success_rate": 0.95,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "NameError: name '.*' is not defined",
+      "category": "undefined_variable",
+      "fix_strategy": "quick_fixes",
+      "solution": {
+        "description": "Variable used before definition",
+        "fix_approach": "Define variable or add import statement"
+      },
+      "success_rate": 0.91,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "ValueError: invalid literal for int()",
+      "category": "type_conversion",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Invalid string to integer conversion",
+        "fix_approach": "Add validation or try/except block"
+      },
+      "success_rate": 0.84,
+      "confidence": "medium"
+    },
+    {
+      "error_signature": "KeyError:",
+      "category": "missing_key",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Dictionary key doesn't exist",
+        "fix_approach": "Use dict.get() with default value or check key existence"
+      },
+      "success_rate": 0.89,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "asyncio.TimeoutError",
+      "category": "async_timeout",
+      "fix_strategy": "simplify",
+      "solution": {
+        "description": "Async operation timed out",
+        "fix_approach": "Increase timeout or optimize async operation"
+      },
+      "success_rate": 0.72,
+      "confidence": "medium"
+    },
+    {
+      "error_signature": "FileNotFoundError:",
+      "category": "missing_file",
+      "fix_strategy": "regenerate_files",
+      "solution": {
+        "description": "Required file doesn't exist",
+        "fix_approach": "Generate missing file or fix file path"
+      },
+      "success_rate": 0.93,
+      "confidence": "high"
+    },
+    {
+      "error_signature": "RuntimeError: Event loop is closed",
+      "category": "asyncio_lifecycle",
+      "fix_strategy": "test_config",
+      "solution": {
+        "description": "Async event loop closed prematurely",
+        "fix_approach": "Use asyncio.run() or proper async test fixtures"
+      },
+      "success_rate": 0.68,
+      "confidence": "low"
+    },
+    {
+      "error_signature": "FAILED tests/.*::test_",
+      "category": "test_failure",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Test assertion failed",
+        "typical_causes": [
+          "Incorrect expected value",
+          "Logic bug in implementation",
+          "Test setup issue",
+          "Race condition in async test"
+        ]
+      },
+      "success_rate": 0.65,
+      "confidence": "medium"
+    },
+    {
+      "error_signature": "pydantic.ValidationError:",
+      "category": "validation_error",
+      "fix_strategy": "logic_fixes",
+      "solution": {
+        "description": "Pydantic model validation failed",
+        "fix_approach": "Fix data types to match model schema"
+      },
+      "success_rate": 0.87,
+      "confidence": "high"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2025-11-20",
+    "total_patterns": 18,
+    "description": "OMNI RepairAgent error pattern knowledge base. This database helps RepairAgent make faster, smarter repair decisions by recognizing common error patterns and applying known fixes.",
+    "learning_enabled": true,
+    "notes": "Patterns are ordered by confidence and success rate. RepairAgent can extend this database as it learns from successful repairs."
+  }
+}
