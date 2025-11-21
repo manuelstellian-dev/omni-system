@@ -9,6 +9,7 @@ import psutil
 from cortex import ProjectSpec, Task
 from memory_agent import MemoryAgent
 from prompt_assembler import PromptAssembler
+from resource_monitor import ResourceMonitor, ResourceThresholds
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -33,7 +34,10 @@ class SwarmAgent:
         # Track completed tasks (for DAG execution)
         self.completed_tasks: set = set()
 
-        # Adaptive concurrency limiting (CRITICAL FIX for memory overflow)
+        # Resource monitoring system (CRITICAL FIX for memory overflow)
+        self.resource_monitor = ResourceMonitor()
+        
+        # Adaptive concurrency limiting based on real-time resources
         self.max_concurrent_tasks = self._calculate_optimal_concurrency()
         self.semaphore = asyncio.Semaphore(self.max_concurrent_tasks)
 
@@ -43,24 +47,8 @@ class SwarmAgent:
 
     def _calculate_optimal_concurrency(self) -> int:
         """
-        Calculate optimal number of concurrent tasks based on available system memory.
-
-        This prevents OOM (Out of Memory) crashes by adaptively limiting parallelism
-        based on RAM availability. Each task can consume 200-400MB during LLM calls.
-
-        Returns:
-            int: Optimal number of concurrent tasks (1-8)
-
-        Environment Variables:
-            OMNI_MAX_CONCURRENT_TASKS: Override automatic calculation
-                - "auto" (default): Calculate based on RAM
-                - Integer (1-10): Force specific concurrency level
-
-        Examples:
-            - System with 2GB free RAM → 1 task (safe mode)
-            - System with 4GB free RAM → 2 tasks
-            - System with 6GB free RAM → 4 tasks
-            - System with 8GB+ free RAM → 6-8 tasks (optimal)
+        Calculate optimal number of concurrent tasks using ResourceMonitor.
+        Integrates with adaptive resource monitoring system.
         """
         # Check for environment variable override
         env_override = os.getenv("OMNI_MAX_CONCURRENT_TASKS", "auto")
@@ -72,45 +60,14 @@ class SwarmAgent:
                         f"[yellow]⚠ Using manual concurrency override: {override_value} tasks[/yellow]"
                     )
                     return override_value
-                else:
-                    console.print(
-                        f"[yellow]⚠ Invalid OMNI_MAX_CONCURRENT_TASKS={override_value}, using auto[/yellow]"
-                    )
             except ValueError:
-                console.print(
-                    f"[yellow]⚠ Invalid OMNI_MAX_CONCURRENT_TASKS={env_override}, using auto[/yellow]"
-                )
+                pass
 
-        # Calculate based on available RAM
-        try:
-            # Get available memory in GB
-            mem = psutil.virtual_memory()
-            available_ram_gb = mem.available / (1024**3)
-
-            # Conservative formula: each task can use ~300-500MB
-            # We want to keep system below 80% memory usage
-            if available_ram_gb < 2:
-                concurrency = 1  # Safe mode
-                console.print(
-                    f"[yellow]⚠ Low memory ({available_ram_gb:.1f}GB), using 1 task[/yellow]"
-                )
-            elif available_ram_gb < 4:
-                concurrency = 2
-            elif available_ram_gb < 6:
-                concurrency = 4
-            elif available_ram_gb < 8:
-                concurrency = 6
-            else:
-                # Cap at 8 tasks even with lots of RAM
-                # (diminishing returns + API rate limits)
-                concurrency = min(8, int(available_ram_gb / 1.5))
-
-            return concurrency
-
-        except Exception as e:
-            # Fallback to conservative default if psutil fails
-            console.print(f"[yellow]⚠ Could not detect memory, defaulting to 3 tasks: {e}[/yellow]")
-            return 3
+        # Use ResourceMonitor for intelligent calculation
+        recommendation = self.resource_monitor.get_recommendation()
+        console.print(f"[dim]{recommendation['message']}[/dim]")
+        
+        return recommendation['recommended_concurrency']
 
     # File templates and dependency mapping moved to class level for clarity
     @property
@@ -317,7 +274,15 @@ class SwarmAgent:
         - Generates ALL files for this task in a single LLM call (per-task generation)
         - Writes files to disk
         - Adds generated code to Memory Agent for future context
+        - Monitors resources and throttles if needed
         """
+        # Check resources before starting task
+        if self.resource_monitor.should_throttle():
+            recommendation = self.resource_monitor.get_recommendation()
+            console.print(f"[yellow]⚠ {recommendation['message']}[/yellow]")
+            console.print("[yellow]⚠ Throttling execution...[/yellow]")
+            self.resource_monitor.adaptive_sleep(2.0)
+        
         task_progress = progress.add_task(f"[cyan]Task: {task.task_id}[/cyan]", total=None)
 
         # Retrieve relevant context from memory (if memory agent available)

@@ -3,6 +3,7 @@ from typing import List
 import litellm
 import json
 import os
+from resource_monitor import ResourceMonitor
 
 
 class Task(BaseModel):
