@@ -85,7 +85,7 @@ async def _create_async(intent: str, stack: str, deploy: bool):
         console.print("[green]✓ Cortex Analysis Complete[/green]\n")
 
         # Define target directory based on project name
-        target_dir = str(Path("./build_output") / spec.project_name)
+        target_dir = str(Path(__file__).parent / "build_output" / spec.project_name)
         project_dir = Path(target_dir)
         project_dir.mkdir(parents=True, exist_ok=True)
 
