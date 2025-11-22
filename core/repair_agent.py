@@ -879,7 +879,7 @@ To avoid similar issues in the future:
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=900
             )
 
             if result.returncode == 0:
