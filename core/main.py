@@ -284,10 +284,9 @@ def create(
     asyncio.run(_create_async(intent, stack, deploy))
 
 
-@app.command()
-def verify(project_name: str = typer.Argument(..., help="The name of the project to resume verification for.")):
+async def _verify_async(project_name: str):
     """
-    Resumes the verification and self-healing loop for an existing project.
+    Async verification loop using the full RepairAgent capabilities.
     """
     load_manifesto()
 
@@ -298,12 +297,12 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
 
     if not project_dir.is_dir():
         console.print(f"[bold red]Error:[/bold red] Project directory not found at {project_dir.absolute()}. Please check the project name.")
-        raise typer.Exit(code=1)
+        sys.exit(1)
 
     spec = _load_spec(project_dir)
     if not spec:
         console.print("[bold red]Error:[/bold red] Failed to load project specification.")
-        raise typer.Exit(code=1)
+        sys.exit(1)
 
     # 1. Initialize Swarm Agent
     console.print("[grey50]Initializing Swarm Agent...[/grey50]")
@@ -316,10 +315,16 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
     arbiter = ArbiterAgent()
     console.print("[green]✓ Arbiter Agent Ready[/green]\n")
 
-    # 3. Verify and refine
-    verification_result = arbiter.verify_and_refine(target_dir, spec)
+    # 3. Verify and refine (blocking op)
+    loop = asyncio.get_event_loop()
+    verification_result = await loop.run_in_executor(
+        None,
+        arbiter.verify_and_refine,
+        target_dir,
+        spec
+    )
 
-    # 4. Handle verification result
+    # 4. Handle verification result with RepairAgent
     if verification_result["status"] == "failed":
         console.print("\n" + "="*60)
         console.print(Panel.fit(
@@ -330,39 +335,25 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
         ))
         console.print("="*60 + "\n")
 
-        fix_plan = verification_result.get("fix_plan")
+        # Initialize RepairAgent with multiple progressive strategies
+        console.print("[yellow]Initializing RepairAgent (Advanced Self-Healing)...[/yellow]\n")
+        repair_agent = RepairAgent(arbiter=arbiter, swarm=agent)
 
-        if fix_plan and (fix_plan.get("fixes") or fix_plan.get("additional_commands")):
-            console.print("[yellow]Initiating self-healing sequence...[/yellow]\n")
+        # Run aggressive multi-strategy repair loop
+        repair_result = await repair_agent.repair(
+            target_dir=target_dir,
+            spec=spec,
+            initial_error=verification_result
+        )
 
-            # Apply code fixes if any
-            if fix_plan.get("fixes"):
-                agent.apply_fix(fix_plan)
-
-            # Run additional commands if any (e.g., npm install missing packages)
-            if fix_plan.get("additional_commands"):
-                import subprocess
-                for cmd in fix_plan.get("additional_commands"):
-                    console.print(f"[cyan]Running:[/cyan] {cmd}")
-                    result = subprocess.run(cmd, shell=True, cwd=target_dir, capture_output=True, text=True)
-                    if result.returncode == 0:
-                        console.print(f"[green]✓ Success[/green]")
-                    else:
-                        console.print(f"[red]✗ Failed[/red]")
-
-            console.print("\n[yellow]Re-running verification...[/yellow]")
-
-            # Verify again
-            verification_result = arbiter.verify_and_refine(target_dir, spec)
-
-            if verification_result["status"] == "success":
-                console.print("[bold green]✓ Self-healing successful![/bold green]\n")
-            else:
-                console.print("[bold red]✗ Self-healing failed. Manual intervention required.[/bold red]")
-                console.print(f"[dim]Error: {verification_result.get('message', 'Unknown error')}[/dim]")
-                sys.exit(1)
+        # Check final status
+        if repair_result["status"] == "success":
+            verification_result = {"status": "success", "message": "Repaired successfully"}
+            console.print(f"[bold green]✓ RepairAgent succeeded with: {repair_result['strategy_used']}[/bold green]\n")
         else:
-            console.print("[bold red]No fix plan available. Manual intervention required.[/bold red]")
+            console.print(f"[bold yellow]⚠ RepairAgent exhausted all strategies[/bold yellow]")
+            console.print("[bold red]✗ Verification failed after self-healing attempts.[/bold red]")
+            arbiter.cleanup()
             sys.exit(1)
 
     # 5. Final success message
@@ -380,6 +371,15 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
 
     # 6. Cleanup
     arbiter.cleanup()
+
+
+@app.command()
+def verify(project_name: str = typer.Argument(..., help="The name of the project to resume verification for.")):
+    """
+    Resumes the verification and self-healing loop for an existing project.
+    Uses the full RepairAgent capabilities.
+    """
+    asyncio.run(_verify_async(project_name))
 
 
 @app.command()
