@@ -79,7 +79,7 @@
           "Authentication failure"
         ]
       },
-      "success_rate": 0.70,
+      "success_rate": 0.7,
       "confidence": "medium"
     },
     {
@@ -222,6 +222,25 @@
       },
       "success_rate": 0.87,
       "confidence": "high"
+    },
+    {
+      "error_signature": "Next.js build failure with 'Cannot find namespace JSX' and 'multiple lockfiles' warning, often due to 'latest' dependencies, monorepo context, and incorrect PostCSS configuration.",
+      "category": "meta_learned",
+      "fix_strategy": "meta_cognitive",
+      "solution": {
+        "summary": "The fix involved pinning all critical dependencies (Next.js, React, types) to stable, compatible versions, explicitly configuring the `turbopack.root` in `next.config.js` to resolve workspace ambiguity, creating a correct `postcss.config.js` for Tailwind, and simplifying the return type annotation in `layout.tsx`.",
+        "prevention": "Avoid using 'latest' for critical dependencies; always pin to specific versions. Explicitly configure Next.js workspace root in monorepos. Ensure `postcss.config.js` is correctly set up for styling. Regularly review and update dependencies in a controlled manner, performing clean installs (`rm -rf node_modules package-lock.json && npm install`) after significant changes.",
+        "tech_stack": [
+          "Next.js",
+          "React",
+          "TypeScript",
+          "Tailwind CSS"
+        ],
+        "learned_at": "2025-11-21"
+      },
+      "success_rate": 1.0,
+      "confidence": "high",
+      "times_applied": 1
     }
   ],
   "metadata": {

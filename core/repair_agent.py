@@ -78,61 +78,86 @@ class RepairAgent:
         current_error = initial_error
 
         for attempt, (strategy_name, strategy_func) in enumerate(self.strategies, 1):
-            console.print(f"\n[cyan]═══ Repair Attempt {attempt}/{self.max_attempts} ═══[/cyan]")
-            console.print(f"[yellow]Strategy:[/yellow] {strategy_name}")
+            try:
+                console.print(f"\n[cyan]═══ Repair Attempt {attempt}/{self.max_attempts} ═══[/cyan]")
+                console.print(f"[yellow]Strategy:[/yellow] {strategy_name}")
 
-            # Apply strategy
-            fix_result = await strategy_func(target_dir, spec, current_error)
+                # Apply strategy
+                fix_result = await strategy_func(target_dir, spec, current_error)
 
-            # Track this attempt for META strategy
-            attempt_record = {
-                "attempt_number": attempt,
-                "strategy_name": strategy_name,
-                "error": current_error,
-                "fix_result": fix_result,
-                "success": False
-            }
-
-            if not fix_result or not fix_result.get("fixes"):
-                console.print(f"[dim]Strategy returned no fixes, trying next...[/dim]")
-                self.repair_history.append(attempt_record)
-                continue
-
-            # Apply fixes using SwarmAgent
-            console.print(f"[cyan]Applying fixes...[/cyan]")
-            self.swarm.apply_fix(fix_result)
-
-            # Run additional commands if any
-            if fix_result.get("additional_commands"):
-                await self._run_commands(fix_result["additional_commands"], target_dir)
-
-            # Re-verify
-            console.print(f"[cyan]Re-running verification...[/cyan]")
-            verification_result = self.arbiter.verify_and_refine(target_dir, spec)
-
-            if verification_result["status"] == "success":
-                attempt_record["success"] = True
-                self.repair_history.append(attempt_record)
-
-                console.print("\n" + "="*70)
-                console.print(Panel.fit(
-                    f"[bold green]✓ REPAIR SUCCESSFUL![/bold green]\n\n"
-                    f"Strategy: {strategy_name}\n"
-                    f"Attempts: {attempt}/{self.max_attempts}",
-                    border_style="green"
-                ))
-                console.print("="*70 + "\n")
-
-                return {
-                    "status": "success",
-                    "strategy_used": strategy_name,
-                    "attempts": attempt
+                # Track this attempt for META strategy
+                attempt_record = {
+                    "attempt_number": attempt,
+                    "strategy_name": strategy_name,
+                    "error": current_error,
+                    "fix_result": fix_result,
+                    "success": False
                 }
-            else:
-                console.print(f"[yellow]✗ Strategy failed, continuing...[/yellow]\n")
-                attempt_record["verification_error"] = verification_result
-                self.repair_history.append(attempt_record)
-                current_error = verification_result
+
+                # Handle both dict and list responses from LLM
+                if not fix_result:
+                    console.print(f"[dim]Strategy returned no fixes, trying next...[/dim]")
+                    self.repair_history.append(attempt_record)
+                    continue
+
+                # If LLM returned a list instead of dict, skip this strategy (Strict Validation)
+                if isinstance(fix_result, list) or not isinstance(fix_result, dict):
+                    console.print(f"[dim]Strategy returned invalid format (expected dict, got {type(fix_result).__name__}), trying next...[/dim]")
+                    self.repair_history.append(attempt_record)
+                    continue
+
+                if not fix_result.get("fixes"):
+                    console.print(f"[dim]Strategy returned no fixes list, trying next...[/dim]")
+                    self.repair_history.append(attempt_record)
+                    continue
+
+                # Apply fixes using SwarmAgent
+                console.print(f"[cyan]Applying fixes...[/cyan]")
+                self.swarm.apply_fix(fix_result)
+
+                # Run additional commands if any
+                if fix_result.get("additional_commands"):
+                    await self._run_commands(fix_result["additional_commands"], target_dir)
+
+                # Re-verify
+                console.print(f"[cyan]Re-running verification...[/cyan]")
+                verification_result = self.arbiter.verify_and_refine(target_dir, spec)
+
+                if verification_result["status"] == "success":
+                    attempt_record["success"] = True
+                    self.repair_history.append(attempt_record)
+
+                    console.print("\n" + "="*70)
+                    console.print(Panel.fit(
+                        f"[bold green]✓ REPAIR SUCCESSFUL![/bold green]\n\n"
+                        f"Strategy: {strategy_name}\n"
+                        f"Attempts: {attempt}/{self.max_attempts}",
+                        border_style="green"
+                    ))
+                    console.print("="*70 + "\n")
+
+                    return {
+                        "status": "success",
+                        "strategy_used": strategy_name,
+                        "attempts": attempt
+                    }
+                else:
+                    console.print(f"[yellow]✗ Strategy failed, continuing...[/yellow]\n")
+                    attempt_record["verification_error"] = verification_result
+                    self.repair_history.append(attempt_record)
+                    current_error = verification_result
+
+            except Exception as e:
+                console.print(f"[bold red]⚠ Strategy '{strategy_name}' crashed with error: {e}[/bold red]")
+                console.print("[dim]Continuing to next strategy...[/dim]")
+                self.repair_history.append({
+                    "attempt_number": attempt,
+                    "strategy_name": strategy_name,
+                    "error": current_error,
+                    "crash_error": str(e),
+                    "success": False
+                })
+                continue
 
         # All strategies exhausted
         console.print("\n" + "="*70)

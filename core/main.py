@@ -23,13 +23,14 @@ console = Console()
 app = typer.Typer(help="OMNI: Autonomous AI Operating Environment")
 
 def load_manifesto():
-    """Loads the core constitution of the system."""
+    """Load the OMNI Manifesto from disk."""
     try:
-        with open("00_MANIFESTO.md", "r") as f:
+        manifesto_path = Path(__file__).parent / "00_MANIFESTO.md"
+        with open(manifesto_path, "r") as f:
             return f.read()
     except FileNotFoundError:
         console.print("[bold red]CRITICAL:[/bold red] Manifesto not found. OMNI requires its core constitution.")
-        sys.exit(1)
+        exit(1)
 
 # --- Utility Functions ---
 
@@ -292,7 +293,7 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
 
     console.print(Panel.fit(f"[bold white]OMNI VERIFICATION RESUMED[/bold white]\n\nProject: [bold cyan]{project_name}[/bold cyan]\nMode: Self-Healing", border_style="yellow"))
 
-    target_dir = str(Path("./build_output") / project_name)
+    target_dir = str(Path(__file__).parent / "build_output" / project_name)
     project_dir = Path(target_dir)
 
     if not project_dir.is_dir():
