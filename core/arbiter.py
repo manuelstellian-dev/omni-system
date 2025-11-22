@@ -20,11 +20,16 @@ class ArbiterAgent:
         self.sandbox_dir = tempfile.mkdtemp(prefix="omni_sandbox_")
         self.compatibility_checker = CompatibilityChecker()
         self.resource_manager = get_resource_manager()
+        
+        # Robust NPM install strategy: Try standard -> legacy-peers -> force
+        # This handles common AI-generated dependency conflicts automatically
+        npm_install = "npm install || npm install --legacy-peer-deps || npm install --force"
+        
         self.build_commands = {
-            "nextjs": ["npm install", "npm run build"],
-            "react": ["npm install", "npm run build"],
-            "typescript": ["npm install", "npx tsc --noEmit"],
-            "javascript": ["npm install", "npm test"],
+            "nextjs": [npm_install, "npm run build"],
+            "react": [npm_install, "npm run build"],
+            "typescript": [npm_install, "npx tsc --noEmit"],
+            "javascript": [npm_install, "npm test"],
             "python": ["pip install -r requirements.txt", "python3 -m pytest"],
             "fastapi": ["pip install -r requirements.txt", "python3 -m pytest"],
         }

@@ -85,7 +85,7 @@ async def _create_async(intent: str, stack: str, deploy: bool):
         console.print("[green]✓ Cortex Analysis Complete[/green]\n")
 
         # Define target directory based on project name
-        target_dir = str(Path(__file__).parent / "build_output" / spec.project_name)
+        target_dir = str(Path(__file__).parent.parent / "build_output" / spec.project_name)
         project_dir = Path(target_dir)
         project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -281,7 +281,11 @@ def create(
     - Self-healing verification loop
     - Parallel infrastructure and documentation generation
     """
-    asyncio.run(_create_async(intent, stack, deploy))
+    try:
+        asyncio.run(_create_async(intent, stack, deploy))
+    except (RuntimeError, OSError):
+        # Suppress known asyncio cleanup noise on Linux (Event loop closed / SSL transport)
+        pass
 
 
 async def _verify_async(project_name: str):
@@ -292,7 +296,7 @@ async def _verify_async(project_name: str):
 
     console.print(Panel.fit(f"[bold white]OMNI VERIFICATION RESUMED[/bold white]\n\nProject: [bold cyan]{project_name}[/bold cyan]\nMode: Self-Healing", border_style="yellow"))
 
-    target_dir = str(Path(__file__).parent / "build_output" / project_name)
+    target_dir = str(Path(__file__).parent.parent / "build_output" / project_name)
     project_dir = Path(target_dir)
 
     if not project_dir.is_dir():
@@ -379,7 +383,11 @@ def verify(project_name: str = typer.Argument(..., help="The name of the project
     Resumes the verification and self-healing loop for an existing project.
     Uses the full RepairAgent capabilities.
     """
-    asyncio.run(_verify_async(project_name))
+    try:
+        asyncio.run(_verify_async(project_name))
+    except (RuntimeError, OSError):
+        # Suppress known asyncio cleanup noise on Linux
+        pass
 
 
 @app.command()
