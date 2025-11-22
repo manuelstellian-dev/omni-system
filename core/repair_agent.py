@@ -809,7 +809,7 @@ To avoid similar issues in the future:
             console.print(f"[yellow]⚠ Could not generate troubleshooting doc: {str(e)}[/yellow]")
 
     async def _call_llm(self, system_prompt: str, user_prompt: str) -> Optional[Dict]:
-        """Helper to call LLM and parse JSON response"""
+        """Helper to call LLM and parse JSON response with advanced cleaning"""
         try:
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -820,12 +820,46 @@ To avoid similar issues in the future:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.3,
-                    response_format={"type": "json_object"}
+                    # We relax response_format because 'json_object' sometimes forces strictness
+                    # that breaks when models wrap in markdown.
+                    # response_format={"type": "json_object"}
                 )
             )
 
-            fix_plan_text = response.choices[0].message.content.strip()
-            fix_plan = json.loads(fix_plan_text)
+            content = response.choices[0].message.content.strip()
+
+            # 1. Clean Markdown code blocks (```json ... ```)
+            if "```" in content:
+                import re
+                # Extract content between ```json (optional) and ```
+                match = re.search(r"```(?:json)?(.*?)```", content, re.DOTALL)
+                if match:
+                    content = match.group(1).strip()
+
+            # 2. Attempt to parse JSON
+            import json
+            try:
+                fix_plan = json.loads(content)
+            except json.JSONDecodeError:
+                # Fallback: try to fix common JSON errors
+                # Replace invalid control characters
+                content = content.replace('\n', '\\n').replace('\r', '')
+                # Try again
+                try:
+                    fix_plan = json.loads(content)
+                except:
+                    console.print(f"[red]Failed to parse LLM JSON response.[/red]")
+                    return None
+
+            # 3. Normalize List -> Dict
+            if isinstance(fix_plan, list):
+                console.print("[dim]Auto-normalizing list response to dict...[/dim]")
+                fix_plan = {"fixes": fix_plan}
+
+            # 4. Ensure it's a dict
+            if not isinstance(fix_plan, dict):
+                console.print(f"[red]LLM returned invalid type: {type(fix_plan)}[/red]")
+                return None
 
             return fix_plan
 
