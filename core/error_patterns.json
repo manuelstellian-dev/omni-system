@@ -241,6 +241,96 @@
       "success_rate": 1.0,
       "confidence": "high",
       "times_applied": 1
+    },
+    {
+      "error_signature": "Dependency version drift (using 'latest' tags) leading to cascading type and runtime errors across core libraries (Next.js, NextAuth.js, React, Stripe) and incomplete boilerplate setup.",
+      "category": "meta_learned",
+      "fix_strategy": "meta_cognitive",
+      "solution": {
+        "summary": "Stabilized the project by pinning all critical dependencies to known-good, compatible versions (Next.js 14.x, React 18.x, NextAuth.js 4.x, Prisma 5.x, Stripe 15.x). Addressed specific API changes for Next.js App Router (async `headers()`) and Stripe SDK (API version, `current_period_end` type). Implemented correct NextAuth.js v4 integration patterns for App Router server components (`getServerSession`) and client components (`SessionProvider`). Created missing boilerplate files (`src/lib/stripe/utils.ts`, `src/components/providers/auth-provider.tsx`, `src/auth.ts`) and configured the testing environment (`jest.config.ts`, `jest.setup.ts`, `@testing-library/jest-dom`).",
+        "prevention": "1. **Avoid `\"latest\"` for production dependencies:** Always pin major and minor versions (e.g., `^14.2.3` or `14.2.3`) to prevent unexpected breaking changes. 2. **Understand Semantic Versioning:** Be aware that major version bumps (e.g., `next-auth` v4 to v5) almost always introduce breaking changes. Review release notes before upgrading. 3. **Staged Upgrades:** Upgrade dependencies incrementally, testing each major component (e.g., Next.js, then NextAuth.js, then Prisma) to isolate issues. 4. **Comprehensive Boilerplate Setup:** Ensure all necessary files and configurations (like `src/auth.ts`, `src/components/providers/auth-provider.tsx`, `jest.setup.ts`, utility files) are present and correctly structured from the start. 5. **Leverage TypeScript's Strict Mode:** Maintain `strict: true` in `tsconfig.json` to catch type mismatches early, especially when dealing with external APIs like Stripe.",
+        "tech_stack": [
+          "Next.js 15 (App Router)",
+          "Prisma ORM",
+          "PostgreSQL",
+          "Stripe",
+          "Resend",
+          "Zod",
+          "TypeScript",
+          "GitHub Actions",
+          "Docker",
+          "OpenTelemetry",
+          "Grafana",
+          "Railway",
+          "NextAuth.js",
+          "Tailwind CSS",
+          "Jest"
+        ],
+        "learned_at": "2025-11-21"
+      },
+      "success_rate": 1.0,
+      "confidence": "high",
+      "times_applied": 1
+    },
+    {
+      "error_signature": "DependencyMismatch_NextAuthV5Beta_React19RC_PrismaSchema",
+      "category": "meta_learned",
+      "fix_strategy": "meta_cognitive",
+      "solution": {
+        "summary": "The core issue was a combination of highly experimental dependency versions (React 19 RC, Next.js 15, NextAuth v5 beta) causing API incompatibilities and type errors. The fix involved downgrading React to a stable 18.x version, updating the Prisma schema to include missing Stripe-related fields, and refactoring NextAuth usage to conform to its v5 beta API (e.g., `auth()` instead of `getServerSession`, new adapter/provider imports, and proper environment variable handling with type assertions).",
+        "prevention": "To avoid similar issues in the future:\n1.  **Dependency Version Pinning & Stability:** Avoid using Release Candidate (RC) or beta versions of major frameworks (React, Next.js) in production or early development unless absolutely necessary and with a clear understanding of potential breaking changes. Prefer stable versions. Use exact version pinning for critical dependencies.\n2.  **NextAuth Version Management:** Be aware of major version changes in NextAuth (especially v4 to v5). These often involve significant API overhauls. Consult migration guides carefully.\n3.  **Prisma Schema & Client Sync:** Always update `schema.prisma` first when adding new data model fields, and then run `npx prisma generate` to ensure the Prisma client is in sync with the database schema.\n4.  **TypeScript Strictness:** Embrace `strict: true` from the start. Implement robust environment variable validation and explicit type definitions for all function parameters and return values to prevent `noImplicitAny` and `string | undefined` assignment errors.",
+        "tech_stack": [
+          "Next.js 15 (App Router)",
+          "Prisma ORM",
+          "PostgreSQL",
+          "Stripe",
+          "Resend",
+          "Zod",
+          "TypeScript",
+          "GitHub Actions",
+          "Docker",
+          "OpenTelemetry",
+          "Grafana",
+          "Railway",
+          "NextAuth.js",
+          "Tailwind CSS",
+          "Jest"
+        ],
+        "learned_at": "2025-11-21"
+      },
+      "success_rate": 1.0,
+      "confidence": "high",
+      "times_applied": 1
+    },
+    {
+      "error_signature": "PrismaSchemaMismatch|DependencyInstability|TypeScriptConfig",
+      "category": "meta_learned",
+      "fix_strategy": "meta_cognitive",
+      "solution": {
+        "summary": "The core issue was a desynchronized Prisma schema and client, leading to numerous type errors. This was resolved by inferring and adding missing models/fields to `schema.prisma` and regenerating the Prisma client. Additionally, Next.js was downgraded for stability, and a TypeScript configuration issue for `jest.config.ts` was fixed. A specific API route parameter typing was also corrected.",
+        "prevention": "1. Always run `npm run prisma:generate` after any changes to `schema.prisma`. 2. Prefer stable versions of core dependencies (Next.js, NextAuth) for boilerplate projects unless specific beta features are required and thoroughly tested. 3. Ensure `tsconfig.json` and project setup correctly handle all `.ts` files, especially configuration files, as modules or scripts as appropriate. 4. Implement strict type checking for all API route parameters and request data.",
+        "tech_stack": [
+          "Next.js 15 (App Router)",
+          "Prisma ORM",
+          "PostgreSQL",
+          "Stripe",
+          "Resend",
+          "Zod",
+          "TypeScript",
+          "GitHub Actions",
+          "Docker",
+          "OpenTelemetry",
+          "Grafana",
+          "Railway",
+          "NextAuth.js",
+          "Tailwind CSS",
+          "Jest"
+        ],
+        "learned_at": "2025-11-21"
+      },
+      "success_rate": 1.0,
+      "confidence": "high",
+      "times_applied": 1
     }
   ],
   "metadata": {
