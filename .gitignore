@@ -162,3 +162,4 @@ site/
 *.tar.gz
 *.rar
 .DS_Store?
+core/build_output/
