@@ -209,14 +209,14 @@ class SwarmAgent:
 
             while len(self.completed_tasks) < len(spec.execution_plan):
                 # Find all ready tasks (dependencies satisfied)
-                ready_tasks = [
+                all_ready_tasks = [
                     task
                     for task in spec.execution_plan
                     if task.task_id not in self.completed_tasks
                     and all(dep in self.completed_tasks for dep in task.depends_on)
                 ]
 
-                if not ready_tasks:
+                if not all_ready_tasks:
                     # Deadlock detection: no tasks ready but not all completed
                     console.print(
                         "[bold red]ERROR: Circular dependency detected in execution plan![/bold red]"
@@ -227,26 +227,27 @@ class SwarmAgent:
                     )
                     break
 
+                # CRITICAL FIX: Limit batch size to max_concurrent_tasks to prevent OOM
+                # We only launch as many coroutines as the system can handle
+                batch_tasks = all_ready_tasks[:self.max_concurrent_tasks]
+
                 # Display tasks being executed
-                task_names = ", ".join([task.task_id for task in ready_tasks])
+                task_names = ", ".join([task.task_id for task in batch_tasks])
                 console.print(
-                    f"\n[cyan]Executing {len(ready_tasks)} task(s) with concurrency limit:[/cyan] {task_names}"
-                )
-                console.print(
-                    f"[dim]Concurrent execution: {self.max_concurrent_tasks} tasks at a time[/dim]"
+                    f"\n[cyan]Executing {len(batch_tasks)} task(s) (Batch limit: {self.max_concurrent_tasks}):[/cyan] {task_names}"
                 )
 
                 try:
-                    # Execute ready tasks concurrently with safety wrapper
+                    # Execute limited batch concurrently
                     await asyncio.gather(
                         *[
                             self._execute_task_with_safety(task, spec, target_path, progress)
-                            for task in ready_tasks
+                            for task in batch_tasks
                         ]
                     )
 
                     # Mark tasks as completed
-                    for task in ready_tasks:
+                    for task in batch_tasks:
                         self.completed_tasks.add(task.task_id)
                         console.print(f"[green]✓[/green] Task complete: {task.task_id}")
 
