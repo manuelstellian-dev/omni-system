@@ -62,7 +62,8 @@ coverage.xml
 *.sqlite3-journal
 
 # Build outputs (generated projects)
-core/build_output/
+# # core/build_output/
+# build_output/
 
 # Log files
 *.log

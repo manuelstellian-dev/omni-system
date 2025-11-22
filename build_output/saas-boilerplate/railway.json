@@ -1,0 +1,46 @@
+{
+  "$schema": "https://railway.app/schemas/railway.schema.json",
+  "name": "saas-boilerplate",
+  "services": [
+    {
+      "name": "saas-boilerplate-web",
+      "type": "app",
+      "root": ".",
+      "environmentVariables": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "DATABASE_URL": "${{DATABASE_URL}}",
+        "NEXTAUTH_SECRET": "${{NEXTAUTH_SECRET}}",
+        "NEXTAUTH_URL": "${{NEXTAUTH_URL}}",
+        "NEXT_PUBLIC_APP_URL": "${{NEXT_PUBLIC_APP_URL}}",
+        "STRIPE_SECRET_KEY": "${{STRIPE_SECRET_KEY}}",
+        "STRIPE_WEBHOOK_SECRET": "${{STRIPE_WEBHOOK_SECRET}}",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "${{NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}}",
+        "RESEND_API_KEY": "${{RESEND_API_KEY}}",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "${{OTEL_EXPORTER_OTLP_ENDPOINT}}",
+        "OTEL_SERVICE_NAME": "saas-boilerplate",
+        "GITHUB_ID": "${{GITHUB_ID}}",
+        "GITHUB_SECRET": "${{GITHUB_SECRET}}",
+        "GOOGLE_ID": "${{GOOGLE_ID}}",
+        "GOOGLE_SECRET": "${{GOOGLE_SECRET}}"
+      }
+    }
+  ],
+  "deployments": {
+    "production": {
+      "branch": "main",
+      "service": "saas-boilerplate-web"
+    },
+    "preview": {
+      "branch": ".*",
+      "service": "saas-boilerplate-web",
+      "template": {
+        "environmentVariables": {
+          "NODE_ENV": "development",
+          "NEXTAUTH_URL": "https://${{RAILWAY_STATIC_URL}}",
+          "NEXT_PUBLIC_APP_URL": "https://${{RAILWAY_STATIC_URL}}"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+# CD Pipeline for saas-boilerplate
+# This workflow deploys the application to Railway on every push to the 'main' branch.
+# It ensures that only successfully built and tested code reaches production.
+
+name: CD Pipeline (Railway)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    # Ensure CI steps (lint, test, build) pass before attempting deployment
+    needs:
+      - lint
+      - test
+      - build
+    environment: production # Designate this as a production deployment environment
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Deploy to Railway
+        uses: railwayapp/github-action@v3
+        with:
+          # RAILWAY_TOKEN is a secret token for authenticating with Railway.
+          # It must be configured in your GitHub repository secrets.
+          token: ${{ secrets.RAILWAY_TOKEN }}
+          # Optional: Specify the service name if you have multiple services in your Railway project.
+          # service: saas-boilerplate-web
+          # Optional: Specify the environment to deploy to (e.g., 'production', 'staging').
+          # Railway typically uses the branch name for environments, but this can override.
+          environment: production
+          # Railway will automatically detect and build the Dockerfile in the root directory.
+          # No explicit build command is needed here if Railway is configured to build from Dockerfile.

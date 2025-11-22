@@ -1,0 +1,228 @@
+{
+    "project_name": "saas-boilerplate",
+    "tech_stack": [
+        "Next.js 15 (App Router)",
+        "Prisma ORM",
+        "PostgreSQL",
+        "Stripe (Subscriptions)",
+        "Resend",
+        "Zod",
+        "TypeScript",
+        "GitHub Actions",
+        "Docker",
+        "OpenTelemetry",
+        "Grafana",
+        "Railway",
+        "NextAuth.js",
+        "Tailwind CSS",
+        "Jest"
+    ],
+    "database_schema": "datasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\ngenerator client {\n  provider = \"prisma-client-js\"\n}\n\nmodel Tenant {\n  id               String       @id @default(cuid())\n  name             String       @unique\n  slug             String       @unique\n  stripeCustomerId String?      @unique\n  createdAt        DateTime     @default(now())\n  updatedAt        DateTime     @updatedAt\n  users            User[]\n  subscriptions    Subscription[]\n\n  @@map(\"tenants\")\n}\n\nmodel User {\n  id            String    @id @default(cuid())\n  name          String?\n  email         String    @unique\n  emailVerified DateTime?\n  image         String?\n  password      String?\n  tenantId      String\n  roleId        String\n  createdAt     DateTime  @default(now())\n  updatedAt     DateTime  @updatedAt\n\n  tenant        Tenant    @relation(fields: [tenantId], references: [id])\n  role          Role      @relation(fields: [roleId], references: [id])\n  accounts      Account[]\n  sessions      Session[]\n\n  @@unique([tenantId, email])\n  @@map(\"users\")\n}\n\nmodel Account {\n  id                String  @id @default(cuid())\n  userId            String\n  type              String\n  provider          String\n  providerAccountId String\n  refresh_token     String?\n  access_token      String?\n  expires_at        Int?\n  token_type        String?\n  scope             String?\n  id_token          String?\n  session_state     String?\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@unique([provider, providerAccountId])\n  @@map(\"accounts\")\n}\n\nmodel Session {\n  id           String   @id @default(cuid())\n  sessionToken String   @unique\n  userId       String\n  expires      DateTime\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@map(\"sessions\")\n}\n\nmodel VerificationToken {\n  identifier String\n  token      String   @unique\n  expires    DateTime\n\n  @@unique([identifier, token])\n  @@map(\"verification_tokens\")\n}\n\nmodel Subscription {\n  id                 String       @id @default(cuid())\n  tenantId           String\n  stripeSubscriptionId String       @unique\n  stripeCustomerId   String\n  stripePriceId      String\n  status             String\n  currentPeriodStart DateTime\n  currentPeriodEnd   DateTime\n  cancelAtPeriodEnd  Boolean      @default(false)\n  createdAt          DateTime     @default(now())\n  updatedAt          DateTime     @updatedAt\n\n  tenant             Tenant       @relation(fields: [tenantId], references: [id])\n\n  @@map(\"subscriptions\")\n}\n\nmodel Product {\n  id            String   @id @default(cuid())\n  name          String\n  stripeProductId String   @unique\n  description   String?\n  price         Int\n  currency      String\n  active        Boolean  @default(true)\n  createdAt     DateTime @default(now())\n  updatedAt     DateTime @updatedAt\n\n  @@map(\"products\")\n}\n\nmodel Role {\n  id          String       @id @default(cuid())\n  name        String       @unique\n  description String?\n  createdAt   DateTime     @default(now())\n  updatedAt   DateTime     @updatedAt\n  users       User[]\n  permissions Permission[] @relation(\"RolePermissions\")\n\n  @@map(\"roles\")\n}\n\nmodel Permission {\n  id          String   @id @default(cuid())\n  action      String   @unique // e.g., 'tenant:read', 'user:create'\n  description String?\n  createdAt   DateTime @default(now())\n  updatedAt   DateTime @updatedAt\n  roles       Role[]   @relation(\"RolePermissions\")\n\n  @@map(\"permissions\")\n}",
+    "core_features": [
+        "Multi-tenancy with discriminator-based isolation (tenantId)",
+        "User Authentication via NextAuth.js (email/password, OAuth)",
+        "Stripe Subscription Management with webhooks for lifecycle events",
+        "Transactional Email sending using Resend",
+        "Role-Based Access Control (RBAC) with Zod validation and TypeScript",
+        "CI/CD pipeline using GitHub Actions",
+        "Multi-stage Docker builds for optimized images",
+        "Application monitoring with OpenTelemetry exporter to Grafana",
+        "Automated deployment to Railway with preview environments",
+        "Comprehensive unit and integration testing with Jest",
+        "Modern UI with Tailwind CSS"
+    ],
+    "execution_plan": [
+        {
+            "task_id": "setup_project_structure",
+            "task_description": "Initialize Next.js project with App Router, configure TypeScript, ESLint, Prettier, and integrate Tailwind CSS.",
+            "output_files": [
+                "package.json",
+                "tsconfig.json",
+                ".eslintrc.json",
+                "prettier.config.js",
+                "tailwind.config.ts",
+                "postcss.config.js",
+                "src/app/layout.tsx",
+                "src/app/page.tsx",
+                "src/app/globals.css"
+            ],
+            "depends_on": []
+        },
+        {
+            "task_id": "setup_database_schema",
+            "task_description": "Define the Prisma schema for Tenant, User, Account, Session, VerificationToken, Subscription, Product, Role, and Permission models, including multi-tenancy discriminators and relationships. Initialize Prisma client.",
+            "output_files": [
+                "prisma/schema.prisma",
+                "src/lib/db.ts"
+            ],
+            "depends_on": []
+        },
+        {
+            "task_id": "setup_docker_and_ci_cd",
+            "task_description": "Create multi-stage Dockerfiles for development and production. Set up GitHub Actions workflows for CI (lint, test, build) and CD (deploy to Railway).",
+            "output_files": [
+                "Dockerfile",
+                "Dockerfile.dev",
+                ".github/workflows/ci.yml",
+                ".github/workflows/cd.yml"
+            ],
+            "depends_on": []
+        },
+        {
+            "task_id": "setup_monitoring",
+            "task_description": "Configure OpenTelemetry for application tracing and metrics, setting up an exporter to Grafana/OTLP collector.",
+            "output_files": [
+                "src/lib/observability/otel.ts",
+                "src/lib/observability/instrumentation.ts",
+                "src/instrumentation.ts"
+            ],
+            "depends_on": []
+        },
+        {
+            "task_id": "implement_authentication",
+            "task_description": "Set up NextAuth.js with email/password and Google OAuth providers. Integrate with the Prisma User model and create authentication routes.",
+            "output_files": [
+                "src/app/api/auth/[...nextauth]/route.ts",
+                "src/lib/auth.ts",
+                "src/lib/auth-options.ts",
+                "src/types/next-auth.d.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema"
+            ]
+        },
+        {
+            "task_id": "implement_rbac_system",
+            "task_description": "Develop a Role-Based Access Control (RBAC) system using Zod for schema validation. Implement middleware or helper functions to enforce permissions based on user roles and tenant context.",
+            "output_files": [
+                "src/lib/rbac/roles.ts",
+                "src/lib/rbac/permissions.ts",
+                "src/lib/rbac/schemas.ts",
+                "src/lib/rbac/utils.ts",
+                "src/middleware.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema",
+                "implement_authentication"
+            ]
+        },
+        {
+            "task_id": "setup_email_service",
+            "task_description": "Integrate Resend for transactional email sending. Create a utility for sending emails (e.g., welcome, password reset) and define basic email templates.",
+            "output_files": [
+                "src/lib/email.ts",
+                "src/emails/welcome.tsx",
+                "src/emails/password-reset.tsx"
+            ],
+            "depends_on": []
+        },
+        {
+            "task_id": "setup_stripe_integration",
+            "task_description": "Configure Stripe client and implement a webhook handler to process subscription events (checkout, renewal, cancellation). Update Prisma models based on webhook data.",
+            "output_files": [
+                "src/lib/stripe.ts",
+                "src/app/api/webhooks/stripe/route.ts",
+                "src/lib/stripe-webhook-events.ts",
+                "src/lib/stripe-billing.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema",
+                "implement_authentication",
+                "setup_email_service"
+            ]
+        },
+        {
+            "task_id": "create_tenant_api",
+            "task_description": "Develop API endpoints for tenant creation and management. Ensure tenantId is correctly applied to all new resources and enforce RBAC.",
+            "output_files": [
+                "src/app/api/tenants/route.ts",
+                "src/app/api/tenants/[tenantId]/route.ts",
+                "src/schemas/tenant.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema",
+                "implement_authentication",
+                "implement_rbac_system",
+                "setup_stripe_integration",
+                "setup_email_service"
+            ]
+        },
+        {
+            "task_id": "create_user_management_api",
+            "task_description": "Implement API endpoints for managing users within a tenant (CRUD operations). Enforce tenant isolation and RBAC for user management actions.",
+            "output_files": [
+                "src/app/api/tenants/[tenantId]/users/route.ts",
+                "src/app/api/tenants/[tenantId]/users/[userId]/route.ts",
+                "src/schemas/user.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema",
+                "implement_authentication",
+                "implement_rbac_system",
+                "create_tenant_api"
+            ]
+        },
+        {
+            "task_id": "create_subscription_management_api",
+            "task_description": "Build API endpoints for managing subscriptions, including initiating Stripe checkout sessions, retrieving subscription status, and handling cancellations. Integrate with Stripe and RBAC.",
+            "output_files": [
+                "src/app/api/tenants/[tenantId]/subscriptions/route.ts",
+                "src/app/api/tenants/[tenantId]/subscriptions/checkout/route.ts",
+                "src/app/api/tenants/[tenantId]/subscriptions/[subscriptionId]/route.ts",
+                "src/schemas/subscription.ts"
+            ],
+            "depends_on": [
+                "setup_database_schema",
+                "implement_authentication",
+                "implement_rbac_system",
+                "setup_stripe_integration",
+                "create_tenant_api"
+            ]
+        },
+        {
+            "task_id": "develop_core_dashboard_ui",
+            "task_description": "Create a basic multi-tenant dashboard UI with pages for tenant settings, user management, and subscription details. Implement client-side data fetching and display.",
+            "output_files": [
+                "src/app/(app)/dashboard/page.tsx",
+                "src/app/(app)/dashboard/settings/page.tsx",
+                "src/app/(app)/dashboard/users/page.tsx",
+                "src/app/(app)/dashboard/billing/page.tsx",
+                "src/components/ui/dashboard-shell.tsx",
+                "src/components/dashboard/tenant-switcher.tsx"
+            ],
+            "depends_on": [
+                "implement_authentication",
+                "create_tenant_api",
+                "create_user_management_api",
+                "create_subscription_management_api"
+            ]
+        },
+        {
+            "task_id": "add_testing",
+            "task_description": "Set up Jest for unit and integration testing. Write basic tests for authentication, API endpoints, and key utility functions.",
+            "output_files": [
+                "jest.config.js",
+                "jest.setup.js",
+                "src/tests/auth.test.ts",
+                "src/tests/tenant-api.test.ts",
+                "src/tests/rbac.test.ts"
+            ],
+            "depends_on": [
+                "implement_authentication",
+                "create_tenant_api",
+                "create_user_management_api",
+                "create_subscription_management_api"
+            ]
+        },
+        {
+            "task_id": "configure_railway_deployment",
+            "task_description": "Create a railway.json configuration file to define services, environment variables, and automatic deployment settings for Railway, including preview environments.",
+            "output_files": [
+                "railway.json"
+            ],
+            "depends_on": [
+                "setup_docker_and_ci_cd"
+            ]
+        }
+    ]
+}

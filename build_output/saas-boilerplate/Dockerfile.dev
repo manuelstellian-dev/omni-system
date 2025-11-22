@@ -1,0 +1,31 @@
+# Dockerfile for development environment.
+# This image is designed for local development with hot-reloading capabilities (when mounted).
+
+# Base image for Node.js development
+FROM node:20-alpine
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy package.json and package-lock.json first to cache dependencies
+COPY package.json package-lock.json ./
+
+# Install development and production dependencies
+# npm install is used for development to allow for package additions/changes
+RUN npm install
+
+# Copy the rest of the application source code
+# In a typical development setup, this directory would be mounted from the host
+# to enable hot-reloading without rebuilding the Docker image on every code change.
+COPY . .
+
+# Generate Prisma client for development
+# This ensures the client is available for local development
+RUN npx prisma generate
+
+# Expose the default Next.js development port
+EXPOSE 3000
+
+# Command to start the Next.js development server
+# This will watch for file changes and hot-reload the application
+CMD ["npm", "run", "dev"]
